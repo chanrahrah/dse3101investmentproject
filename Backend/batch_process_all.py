@@ -10,12 +10,13 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = BASE_DIR / "Datasets"
 RAW_DIR = DATA_DIR / "13F_zip_files"
 CLEAN_DIR = DATA_DIR / "13F_clean_individual"
-CLEAN_DIR.mkdir(exist_ok=True)
 TEMP_DIR = RAW_DIR
 
 # ==========================================================
 # MAIN BATCH FUNCTION
 # ==========================================================
+whitelist = pd.read_csv(r"C:\Users\tyiho\DSE3101 Project\dse3101investmentproject\Backend\valid_institutions.csv",dtype={"CIK": "string"}) 
+whitelist_ciks = set(whitelist["CIK"])
 
 def run_batch():
 
@@ -36,7 +37,7 @@ def run_batch():
 
         print(f"Processing {zip_path.name}...")
 
-        clean_df = process_single_zip(zip_path, TEMP_DIR)
+        clean_df = process_single_zip(zip_path, TEMP_DIR, whitelist_ciks)
         clean_df.to_parquet(clean_path, index=False)
 
         print(f"Saved {clean_filename}")

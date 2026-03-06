@@ -3,8 +3,7 @@ import pandas as pd
 import zipfile
 import os
 
-def process_single_zip(zip_path: Path, temp_dir: Path) -> pd.DataFrame:
-    
+def process_single_zip(zip_path: Path, temp_dir: Path, whitelist_ciks: set) -> pd.DataFrame:    
     extract_path = temp_dir / "temp_extract"
     extract_path.mkdir(exist_ok=True)
 
@@ -59,9 +58,9 @@ def process_single_zip(zip_path: Path, temp_dir: Path) -> pd.DataFrame:
     # FILTER SUBMISSION
     # ------------------------------------------------------
 
-    submission = submission[
-        submission["SUBMISSIONTYPE"].isin(["13F-HR", "13F-HR/A"])
-    ]
+    submission = submission[submission["SUBMISSIONTYPE"].isin(["13F-HR", "13F-HR/A"])]
+    # Filter institutions using whitelist
+    submission = submission[submission["CIK"].isin(whitelist_ciks)]
 
     # Merge coverpage
     submission = submission.merge(
