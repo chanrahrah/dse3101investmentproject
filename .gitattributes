@@ -1,3 +1,1 @@
-Datasets/13F_clean_files/*.parquet filter=lfs diff=lfs merge=lfs -text
-Datasets/**/*.parquet[[:space:]]filter=lfs[[:space:]]diff=lfs[[:space:]]merge=lfs[[:space:]]-text filter=lfs diff=lfs merge=lfs -text
 Datasets/**/*.parquet filter=lfs diff=lfs merge=lfs -text
