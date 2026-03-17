@@ -35,6 +35,9 @@ def build_and_save_cusip_ticker_map(clean_dir: Path, filtered_dir: Path, openfig
     cusip_ticker_df.to_parquet(output_path, index=False)
     print(f"Saved cusip->ticker map to: {output_path}")
 
+    cusip_ticker_df.to_excel(filtered_dir / "cusip_ticker_map.xlsx", index=False)
+    print("save to excel for manual inspection")
+
     return output_path
 
 

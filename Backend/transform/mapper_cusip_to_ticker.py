@@ -25,7 +25,9 @@ def get_all_unique_cusips(clean_dir: Path) -> list:
 
     for parquet_file in clean_dir.glob("*.parquet"):
         df = pd.read_parquet(parquet_file, columns=["CUSIP"])  # only load CUSIP column, faster
-        all_cusips.update(df["CUSIP"].dropna().unique())
+        cusips = df["CUSIP"].dropna()
+        cusips = cusips[~cusips.str.startswith("000")] # filter out invalid CUSIPs starting with 000
+        all_cusips.update(cusips)
 
     print(f"Total unique CUSIPs across all files: {len(all_cusips)}")
     return list(all_cusips)
@@ -35,7 +37,7 @@ def build_cusip_ticker_map(cusips: list, openfigi_key: str) -> pd.DataFrame:
     """Step 2: Call API once for all CUSIPs, return a cusip->ticker mapping df."""
     cusip_ticker_df = map_cusip_to_ticker(cusips, openfigi_key)  # your existing API call
     print(f"Successfully mapped {cusip_ticker_df['ticker'].notna().sum()} / {len(cusip_ticker_df)} CUSIPs")
-    return cusip_ticker_df  # columns: [CUSIP, ticker]
+    return cusip_ticker_df  # columns: [CUSIP, ticker, security_type, name]
 
 
 def map_cusip_to_ticker(cusips: list, openfigi_key: str, batch_size=100, sleep=0.25):
@@ -67,6 +69,8 @@ def map_cusip_to_ticker(cusips: list, openfigi_key: str, batch_size=100, sleep=0
             for CUSIP, item in zip(batch, data):
                 ticker        = None
                 security_type = None
+                name          = None
+                exchCode      = None
 
                 if "data" in item and item["data"]:
                     # Prefer US equity listings
@@ -74,21 +78,27 @@ def map_cusip_to_ticker(cusips: list, openfigi_key: str, batch_size=100, sleep=0
                         if entry.get("exchCode") in ("US", "UN", "UA", "UW", "UR", "UP"):
                             ticker        = entry.get("ticker")
                             security_type = entry.get("securityType")
+                            name          = entry.get("name")
+                            exchCode      = entry.get("exchCode")
                             break
                     # Fall back to first result
                     if ticker is None:
                         ticker        = item["data"][0].get("ticker")
                         security_type = item["data"][0].get("securityType")
+                        name          = item["data"][0].get("name")
+                        exchCode      = item["data"][0].get("exchCode")
 
                 CUSIP_to_ticker[CUSIP] = {
                     "ticker":        ticker,
                     "security_type": security_type,
+                    "name":          name,
+                    "exchCode":      exchCode,
                 }
 
         except requests.exceptions.RequestException as e:
             logger.warning(f"Request failed at batch {i // batch_size + 1}: {e}")
             for CUSIP in batch:
-                CUSIP_to_ticker[CUSIP] = {"ticker": None, "security_type": None}
+                CUSIP_to_ticker[CUSIP] = {"ticker": None, "security_type": None, "name": None, "exchCode": None}
 
         if (i // batch_size + 1) % 10 == 0:
             mapped = sum(1 for v in CUSIP_to_ticker.values() if v["ticker"])
@@ -97,10 +107,11 @@ def map_cusip_to_ticker(cusips: list, openfigi_key: str, batch_size=100, sleep=0
         time.sleep(sleep)
 
     # ── Step 3: Build mapping df ──────────────────────────────────────────────
-    mapping_df = pd.DataFrame([
-        {"CUSIP": cusip, "ticker": v["ticker"], "security_type": v["security_type"]}
-        for cusip, v in CUSIP_to_ticker.items()
-    ])
+    mapping_df = (
+        pd.DataFrame.from_dict(CUSIP_to_ticker, orient="index")
+        .reset_index()
+        .rename(columns={"index": "CUSIP"})
+    )
 
     # ── Step 4: Summary ───────────────────────────────────────────────────────
     total    = len(unique_CUSIPs)
