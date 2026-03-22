@@ -2,7 +2,8 @@ import streamlit as st
 import plotly.graph_objects as go
 from streamlit_echarts import st_echarts
 from components.new_backtest import new_backtest_button #for yenfay's code testing, DO NOT OVERWRITE PLEASE! 
-from components.top_20 import top_20_table #for yenfay's code testing, DO NOT OVERWRITE PLEASE! 
+from components.top_20 import top_20_table #for yenfay's code testing, DO NOT OVERWRITE PLEASE!
+from datetime import date 
 
 # page set up and layout
 st.set_page_config(
@@ -17,12 +18,35 @@ with c_title:
     
 # date layout
 c1, c2, c3 = st.columns([0.8, 0.1, 0.1])
-with c1: 
+quarter_end_dates = [
+    date(2025, 3, 31),
+    date(2025, 6, 30),
+    date(2025, 9, 30),
+    date(2025, 12, 31),
+]
+
+with c1:
     st.write("")
+
 with c2:
-    from_date = st.date_input("From:", key="from_date")
+    from_date = st.selectbox(
+        "From:",
+        options=quarter_end_dates,
+        index=0,
+        format_func=lambda d: d.strftime("%Y/%m/%d"),
+        key="from_date"
+    )
+
 with c3:
-    to_date = st.date_input("To:", key="to_date")
+    valid_to_dates = [d for d in quarter_end_dates if d >= from_date]
+
+    to_date = st.selectbox(
+        "To:",
+        options=valid_to_dates,
+        index=len(valid_to_dates) - 1,
+        format_func=lambda d: d.strftime("%Y/%m/%d"),
+        key="to_date"
+    )
 
 # ---------- metric helper functions ----------
 def metric_bg(value):
@@ -166,5 +190,5 @@ with col_left:
             render_metric(*metric)
 
 with col_right:
-    st.header("Top 20 Stocks by Institutional Holdings")
+    st.header("Top 10 Stocks by Institutional Holdings")
     top_20_table()
