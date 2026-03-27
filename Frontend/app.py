@@ -1,8 +1,8 @@
 import streamlit as st
 import plotly.graph_objects as go
 from streamlit_echarts import st_echarts
-from components.new_backtest import new_backtest_button #for yenfay's code testing, DO NOT OVERWRITE PLEASE! 
-from components.top_20 import top_20_table #for yenfay's code testing, DO NOT OVERWRITE PLEASE!
+from components.add_fees import add_fees
+from components.top_20 import top_20_table 
 from datetime import date 
 import math
 from streamlit_echarts import st_echarts, JsCode
@@ -32,7 +32,7 @@ with c1:
     st.write("")
 
 with c2:
-    fee_per_trade = new_backtest_button()
+    fee_per_trade = add_fees()
 
 with c3:
     from_date = st.selectbox(

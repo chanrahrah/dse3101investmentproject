@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # create button
-def new_backtest_button():
+def add_fees():
     # Connect this to backend or portfolio calculation so the entered fee per trade affects portfolio results and metrics.
     fee_per_trade = st.number_input(
         "Fees per trade ($)",
