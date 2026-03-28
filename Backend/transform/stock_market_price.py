@@ -25,7 +25,7 @@ PRICES_DS_ROOT = DATASETS_DIR / "stock_price_files"
 MANIFEST_PATH = PRICES_DS_ROOT / "_manifest.csv"
 RUN_META_PATH = PRICES_DS_ROOT / "_run_meta.csv"
 
-TICKER_SOURCE_PATH = DATASETS_DIR / "13F_filtered_and_mapped_files" / "cusip_ticker_map.parquet"
+TICKER_SOURCE_PATH = DATASETS_DIR / "others" / "cusip_ticker_map.parquet"
 TICKER_COL = "ticker"
 SECURITY_TYPE_COL = "security_type"
 

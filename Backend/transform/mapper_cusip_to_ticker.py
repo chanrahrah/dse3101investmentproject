@@ -11,13 +11,55 @@ import requests
 import time
 import logging
 
-OPENFIGI_KEY  = "585a86ab-668f-41ee-a72d-25d77ea9b58d"     
-OPENFIGI_URL  = "https://api.openfigi.com/v3/mapping"
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
+
+# ==========================================================
+# CONFIG
+# ==========================================================
+from config import (
+    DEBUG,
+    OPENFIGI_KEY,
+    OPENFIGI_URL
+)
+
 BATCH_SIZE    = 100   # max allowed by OpenFIGI per request
 SLEEP         = 0.25  # seconds between batches (250 req/min with key = 0.24s min)
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-logger = logging.getLogger(__name__)
+
+# ==========================================================
+# Build cusip to ticker map and save as parquet
+# ============================================================
+def build_and_save_cusip_ticker_map(clean_dir: Path, mapper_dir: Path, openfigi_key: str) -> Path:
+    """
+    One-time function: collect all CUSIPs from clean parquets, call OpenFIGI API,
+    and save the cusip->ticker map as a parquet file.
+
+    Run this ONCE. After that, apply_filters_and_mapping_to_all_parquets() will
+    read the saved file directly without calling the API again.
+
+    Returns
+    -------
+    Path to the saved cusip_ticker_map.parquet
+    """
+    print("=== Step 1: Collecting unique CUSIPs ===")
+    all_cusips = get_all_unique_cusips(clean_dir)
+
+    print("\n=== Step 2: Mapping CUSIPs to tickers (one-time API call) ===")
+    cusip_ticker_df = build_cusip_ticker_map(all_cusips, openfigi_key)
+    print(f"Unique tickers obtained: {cusip_ticker_df['ticker'].nunique():,}")
+
+    output_path = mapper_dir / "cusip_ticker_map.parquet"
+    cusip_ticker_df.to_parquet(output_path, index=False)
+    print(f"Saved cusip->ticker map to: {output_path}")
+
+    # cusip_ticker_df.to_excel(mapper_dir / "cusip_ticker_map.xlsx", index=False)
+    # print("save to excel for manual inspection")
+
+
+# ==========================================================
+# Helper functions for CUSIP to ticker mapping
+# ==========================================================
 
 def get_all_unique_cusips(clean_dir: Path) -> list:
     """Step 1: Collect all unique CUSIPs across all parquet files."""

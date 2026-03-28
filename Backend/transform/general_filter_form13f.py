@@ -7,6 +7,31 @@ import logging
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
+# ==========================================================
+# Build whitelist of CIKs and save as parquet
+# ==========================================================
+def build_and_save_whitelist_ciks(clean_dir: Path, mapper_dir: Path) -> Path:
+    """
+    One-time function: To get the list of whitelist CIKs passing all filters, and save as a parquet file.
+
+    Returns
+    -------
+    Path to the saved whitelist_ciks.parquet
+    """
+    print("=== Step 1: Get combined DataFrame ===")
+    combined_df = get_combined_df(clean_dir)
+
+    print("\n=== Step 2: Apply filters and build whitelist ===")
+    whitelist_ciks = get_whitelist_ciks_list(combined_df, min_aum=100_000_000, min_years=5, min_quarters_pct=0.80, aum_in_thousands=False)
+
+    output_path = mapper_dir / "whitelist_ciks.parquet"
+    pd.DataFrame({"CIK": list(whitelist_ciks)}).to_parquet(output_path, index=False)
+    print(f"Saved whitelist of CIKs to: {output_path}")
+
+
+# ==========================================================
+# Helper functions for General filtering of form13f data
+# ==========================================================
 def get_combined_df(clean_dir):
     all_quarters = []
 
@@ -35,7 +60,7 @@ def get_whitelist_ciks_list(
     min_aum=100_000_000,        # raw dollars 
     min_years=5,
     min_quarters_pct=0.80,      # filter 4: must file in ≥80% of quarters
-    aum_in_thousands=False,      # set False if TABLEVALUETOTAL is raw dollars
+    aum_in_thousands=False,     # set False if TABLEVALUETOTAL is raw dollars
 ):
     """
     Returns a set of CIKs passing all filters:
@@ -113,7 +138,6 @@ def get_whitelist_ciks_list(
     print(f"  Pass ALL filters                    : {len(filtered)}")
 
     whitelist_ciks = set(filtered["CIK"])
-    # whitelist_ciks.to_csv("Datasets/whitelist_ciks.csv", index=False)
 
     logger.info(f"Whitelist CIKs obtained.")
     return whitelist_ciks

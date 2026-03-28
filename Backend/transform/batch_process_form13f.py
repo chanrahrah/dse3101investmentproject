@@ -1,43 +1,32 @@
 # this script runs cleaning, filtering and CUSIP to ticker mapping for all form13F data, and saves the cleaned combined df as parquet main file for project.
-
 import logging
 from pathlib import Path
 import pandas as pd
 import zipfile
 import os
+from Datasets.download_data_from_kaggle import download_data_from_kaggle
 from Backend.transform.clean_all_form13f import run_batch
-from Backend.transform.general_filter_form13f import get_combined_df, get_whitelist_ciks_list
-from Backend.transform.mapper_cusip_to_ticker import map_cusip_to_ticker
-from Backend.transform.apply_filters_and_mapping_form13f import build_and_save_cusip_ticker_map, apply_filters_and_mapping_to_all_parquets
+from Backend.transform.general_filter_form13f import get_combined_df, get_whitelist_ciks_list, build_and_save_whitelist_ciks
+from Backend.transform.mapper_cusip_to_ticker import map_cusip_to_ticker, build_and_save_cusip_ticker_map
+from Backend.transform.apply_filters_and_mapping_form13f import apply_filters_and_mapping_to_all_parquets
+from Backend.transform.light_heterogeneity_screen import run_light_heterogeneity_screen
 
 # ==========================================================
-# PATHS
+# STANDARD PATHS AND CONFIG
 # ==========================================================
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2] #dse3101investmentproject
-DATA_DIR = PROJECT_ROOT / "Datasets"
-
-RAW_DIR = DATA_DIR / "13F_zip_files"
-CLEAN_DIR = DATA_DIR / "13F_clean_files"
-FILTERED_AND_MAPPED_DIR = DATA_DIR / "13F_filtered_and_mapped_files"
-MAPPER_DIR = DATA_DIR / "others" 
-TEMP_DIR = PROJECT_ROOT / "temp"
-
-# Ensure directories exist
-RAW_DIR.mkdir(parents=True, exist_ok=True)
-CLEAN_DIR.mkdir(parents=True, exist_ok=True)
-FILTERED_AND_MAPPED_DIR.mkdir(parents=True, exist_ok=True)
-TEMP_DIR.mkdir(parents=True, exist_ok=True)
-
-# ==========================================================
-# CONFIG
-# ==========================================================
-WHITELIST_CIKS = []  # set of CIKs to include, or None for all
-
-OPENFIGI_KEY  = "585a86ab-668f-41ee-a72d-25d77ea9b58d"     
-OPENFIGI_URL  = "https://api.openfigi.com/v3/mapping"
-BATCH_SIZE    = 100   # max allowed by OpenFIGI per request
-SLEEP         = 0.25  # seconds between batches (250 req/min with key = 0.24s min)
+from config import (
+    DEBUG,
+    KAGGLE_KEY,
+    KAGGLE_USERNAME,
+    OPENFIGI_KEY,
+    OPENFIGI_URL,
+    RAW_DIR,
+    CLEAN_DIR,
+    FILTERED_AND_MAPPED_DIR,
+    SCREENED_DIR,
+    MAPPER_DIR,
+    TEMP_DIR,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -46,22 +35,39 @@ logger = logging.getLogger(__name__)
 # MAIN
 # ==========================================================
 def main():
-    # Step 0: Clean 
-    # run_batch(RAW_DIR, CLEAN_DIR, TEMP_DIR)
-    # Note: Uncomment to run this to process zip into clean parquet files.
-    # Note: if you have already run this once and have the clean parquet files, you can skip this step to save time.
+    # Step 0: download data files from kaggle
+    # if DEBUG is True, downloads everything from Kaggle into ./Datasets/
+    # if DEBUG is False, downloads only the 13F_zip_files folder into ./Datasets/13F_zip_files/
+    download_data_from_kaggle()
 
-    # 0.5: Build cusip->ticker map and save as parquet 
-    # build_and_save_cusip_ticker_map(CLEAN_DIR, FILTERED_AND_MAPPED_DIR, OPENFIGI_KEY)
-    # Note: one-time step, run once to save the mapping file, then comment out to reuse the saved file and save time
+    if not DEBUG:
+        # Perform all the steps in production mode. 
 
-    # Step 1: Get filtered list of institutions (whitelist_ciks)
-    combined_df = get_combined_df(CLEAN_DIR)
-    whitelist_ciks = get_whitelist_ciks_list(combined_df, min_aum=100_000_000, min_years=5, min_quarters_pct=0.80, aum_in_thousands=False)
+        # Step 1: Clean zip files and convert to parquet files
+        logger.info("=== Step 0: Unzip raw form13f files and convert to clean parquet files ===")
+        run_batch(RAW_DIR, CLEAN_DIR, TEMP_DIR)
 
-    
-    # Step 2: Apply all filters and map CUSIP to ticker for each quarter's clean parquet files, and save the final filtered + mapped data as separate parquet files. 
-    apply_filters_and_mapping_to_all_parquets(CLEAN_DIR, FILTERED_AND_MAPPED_DIR, MAPPER_DIR, whitelist_ciks)
+        # Step 2: Build whitelist_cik list to filter institutions
+        logger.info("=== Step 1: Build whitelist of CIKs based on filters and save as parquet ===")
+        build_and_save_whitelist_ciks(CLEAN_DIR, MAPPER_DIR)
 
+        # Step 3: Build cusip to ticker map and save as parquet 
+        logger.info("=== Step 2: Build cusip to ticker map using OpenFIGI API and save as parquet ===")
+        build_and_save_cusip_ticker_map(CLEAN_DIR, MAPPER_DIR, OPENFIGI_KEY)
+
+        # Step 4: Apply all filters and map CUSIP to ticker for each quarter's clean parquet files, and save the final filtered + mapped data as separate parquet files. 
+        logger.info("=== Step 3: Apply filters and mapping to all parquets ===")
+        apply_filters_and_mapping_to_all_parquets(CLEAN_DIR, FILTERED_AND_MAPPED_DIR, MAPPER_DIR)
+
+    # Step 5: Light heterogeneity screening
+    logger.info("=== Step 4: Run light heterogeneity screening ===")
+    run_light_heterogeneity_screen(
+        input_dir=FILTERED_AND_MAPPED_DIR,
+        output_dir=SCREENED_DIR,
+        mapper_dir=MAPPER_DIR,   
+        threshold=400
+    )
+
+# Test
 if __name__ == "__main__":
     main()

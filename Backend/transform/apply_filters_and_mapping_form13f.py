@@ -10,39 +10,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 # ==========================================================
-# Build cusip-> ticker map and save as parquet
-# ============================================================
-def build_and_save_cusip_ticker_map(clean_dir: Path, filtered_dir: Path, openfigi_key: str) -> Path:
-    """
-    One-time function: collect all CUSIPs from clean parquets, call OpenFIGI API,
-    and save the cusip->ticker map as a parquet file.
-
-    Run this ONCE. After that, apply_filters_and_mapping_to_all_parquets() will
-    read the saved file directly without calling the API again.
-
-    Returns
-    -------
-    Path to the saved cusip_ticker_map.parquet
-    """
-    print("=== Step 1: Collecting unique CUSIPs ===")
-    all_cusips = get_all_unique_cusips(clean_dir)
-
-    print("\n=== Step 2: Mapping CUSIPs to tickers (one-time API call) ===")
-    cusip_ticker_df = build_cusip_ticker_map(all_cusips, openfigi_key)
-    print(f"Unique tickers obtained: {cusip_ticker_df['ticker'].nunique():,}")
-
-    output_path = filtered_dir / "cusip_ticker_map.parquet"
-    cusip_ticker_df.to_parquet(output_path, index=False)
-    print(f"Saved cusip->ticker map to: {output_path}")
-
-    # cusip_ticker_df.to_excel(filtered_dir / "cusip_ticker_map.xlsx", index=False)
-    # print("save to excel for manual inspection")
-
-    # return output_path
-
-
-# ==========================================================
-# Filter single parquet file
+# Filter and map single parquet file
 # ==========================================================
 
 def filter_and_map_single_parquet(parquet_path: Path, filtered_and_mapped_dir: Path, whitelist_ciks: set,
@@ -86,14 +54,19 @@ def filter_and_map_single_parquet(parquet_path: Path, filtered_and_mapped_dir: P
         "filtered_unique_institutions":  filtered_df["CIK"].nunique(),
         "unmapped_tickers":             unmapped
     }
+
+# ==========================================================
+# Filter and map all parquet files
+# ==========================================================
    
-def apply_filters_and_mapping_to_all_parquets(clean_dir: Path, filtered_dir: Path, mapper_dir: Path,
-                                               whitelist_ciks: set):
+def apply_filters_and_mapping_to_all_parquets(clean_dir: Path, filtered_dir: Path, mapper_dir: Path):
     """
-    Reads the pre-built cusip_ticker_map.parquet, then filters and merges
+    Reads the pre-built cusip_ticker_map.parquet. 
+    Reads the pre-built whitelist_ciks.parquet.
+    Then, filter based on whitelist and merges the ticker mapping information
     into each parquet file in clean_dir.
     """
-    # Load pre-built cusip->ticker map
+    # 1. Load pre-built cusip->ticker map
     cusip_map_path = mapper_dir / "cusip_ticker_map.parquet"
     if not cusip_map_path.exists():
         raise FileNotFoundError(
@@ -103,15 +76,25 @@ def apply_filters_and_mapping_to_all_parquets(clean_dir: Path, filtered_dir: Pat
     cusip_ticker_df = pd.read_parquet(cusip_map_path)
     print(f"Loaded cusip->ticker map: {len(cusip_ticker_df):,} rows, "
           f"{cusip_ticker_df['ticker'].nunique():,} unique tickers")
+    
+    # 2. Load pre-built whitelist_ciks
+    whitelist_path = mapper_dir / "whitelist_ciks.parquet"
+    if not whitelist_path.exists():
+        raise FileNotFoundError(
+            f"whitelist_ciks.parquet not found at {whitelist_path}. "
+            f"Run build_and_save_whitelist_ciks() first."
+        )
+    whitelist_df = pd.read_parquet(whitelist_path)
+    whitelist_ciks = set(whitelist_df["CIK"])
 
-    # Iterate parquets, filter + merge
-    print("\n=== Filtering and merging ticker map into each parquet ===")
+    # 3. Iterate parquets, filter + merge
+    print("\n=== Filtering based on whitelist_ciks and merging ticker map into each parquet ===")
     summary = []
     for parquet_file in clean_dir.glob("*.parquet"):
         stats = filter_and_map_single_parquet(parquet_file, filtered_dir,
                                               whitelist_ciks, cusip_ticker_df)
         summary.append(stats)
-        print(f"  Done: {parquet_file.name}")
+        print(f"Done: {parquet_file.name}")
 
     # Summary table
     summary_df = pd.DataFrame(summary).sort_values("parquet_file").reset_index(drop=True)
