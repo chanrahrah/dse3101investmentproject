@@ -4,6 +4,15 @@ import plotly.graph_objects as go
 from streamlit_echarts import st_echarts
 import math
 from streamlit_echarts import st_echarts, JsCode
+import pandas as pd
+
+@st.cache_data
+def load_frontend_data():
+
+    # assume main() returns:
+    # portfolio_df, metrics_df
+    portfolio_df, metrics_df = main()
+    return portfolio_df, metrics_df
 
 # ---------- metric helper functions ----------
 def metric_bg(value):
