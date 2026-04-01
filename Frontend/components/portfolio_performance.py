@@ -6,17 +6,26 @@ import math
 from streamlit_echarts import st_echarts, JsCode
 import pandas as pd
 from Backend.backtesting.batch_process_rank_stocks import main
+import numpy as np
 
 @st.cache_data
-def load_frontend_data():
+def load_frontend_data(
+    start_date='2013-12-31',
+    end_date='2025-05-23',
+    initial_capital=10_000,
+    topN_stocks=10,
+    topN_institutions=10,
+    lag=47,
+    cost_rate=0.001,
+):
     portfolio_df, metrics_df = main(
-        userinput_start_date='2013-12-31',
-        userinput_end_date='2025-05-23',
-        userinput_initial_capital=10_000,
-        userinput_topN_stocks=10,
-        userinput_topN_institutions=10,
-        userinput_lag=47,
-        userinput_cost_rate=0.001,
+        userinput_start_date=str(start_date),
+        userinput_end_date=str(end_date),
+        userinput_initial_capital=initial_capital,
+        userinput_topN_stocks=topN_stocks,
+        userinput_topN_institutions=topN_institutions,
+        userinput_lag=lag,
+        userinput_cost_rate=cost_rate,
     )
     return portfolio_df, metrics_df
 
@@ -61,6 +70,8 @@ def render_metric(label, value, kind="number"):
         unsafe_allow_html=True
     )
 
+def count_quarters(portfolio_df):
+    return portfolio_df["quarter"].nunique()
 
 def log_returns(series):
     returns = [0]
@@ -71,7 +82,6 @@ def log_returns(series):
 RF_ANNUAL = 0.0375
 RF_QUARTERLY = RF_ANNUAL / 4
 # Placeholder for now
-#st.line_chart([1,2,3,2,5])
 def portfolio_performance():
     chart_c1, chart_c2, _ = st.columns([1, 1, 4])
     with chart_c1:
@@ -79,14 +89,19 @@ def portfolio_performance():
     with chart_c2:
         show_benchmark = st.checkbox("Show SPY", value=True)
 
-    portfolio_df, metrics_df = load_frontend_data()
+    from_date = st.session_state.get("from_date", None)
+    to_date = st.session_state.get("to_date", None)
+    
+
+    portfolio_df, metrics_df = load_frontend_data(
+        start_date=from_date,
+        end_date=to_date
+    )
     portfolio_dates = portfolio_df["quarter"].tolist()
     portfolio_values = portfolio_df["portfolio_value"].tolist()
     #spy_values = portfolio_df["spy_value"].tolist()
     spy_values = portfolio_values.copy()
-    from_date = st.session_state.get("from_date", None)
-    to_date = st.session_state.get("to_date", None)
-
+    
     if from_date is None or to_date is None:
         st.warning("Please select date range")
         return
@@ -256,8 +271,8 @@ def portfolio_performance():
     ending_capital = portfolio_values[-1]
 
     # CAGR (simple version based on periods)
-    num_periods = len(portfolio_values) - 1
-    years = num_periods / 4
+    number_of_quarters = count_quarters(portfolio_df)
+    years = number_of_quarters / 4
     cagr = ((ending_capital / starting_capital) ** (1 / max(years, 1e-6)) - 1) * 100
     
     # Max Drawdown
