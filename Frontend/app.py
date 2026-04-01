@@ -1,13 +1,15 @@
 import sys
 from pathlib import Path
 from datetime import date
+
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR))
+
 import streamlit as st
-from streamlit_echarts import st_echarts
 from components.portfolio_performance import portfolio_performance
 from components.add_fees import add_fees
 from components.top_20 import top_20_table
+from Backend.backtesting.batch_process_rank_stocks import main
 
 # page set up and layout
 st.set_page_config(
@@ -89,6 +91,23 @@ with c7:
         key="lag"
     )
 
+portfolio_df = None
+metrics_df = None
+
+try:
+    with st.spinner("Running backtest..."):
+        portfolio_df, metrics_df = main(
+            userinput_start_date=from_date.strftime("%Y-%m-%d"),
+            userinput_end_date=to_date.strftime("%Y-%m-%d"),
+            userinput_initial_capital=float(initial_capital),
+            userinput_topN_institutions=int(topN_institutions),
+            userinput_topN_stocks=int(topN),
+            userinput_lag=int(lag),
+            userinput_cost_rate=float(cost_rate),
+        )
+except Exception as e:
+    st.error(f"Error running backend: {e}")
+
 # main layout
 col_left, col_right = st.columns([6, 4])
 
@@ -97,5 +116,12 @@ with col_left:
     portfolio_performance()
 
 with col_right:
-    st.header("Top 20 Stocks by Institutional Holdings")
-    top_20_table()
+    st.header("Top Stocks by Institutional Holdings")
+    if portfolio_df is not None:
+        top_20_table(
+            portfolio_df,
+            top_n=int(topN),
+            selected_quarter=from_date.strftime("%Y-%m-%d")
+        )
+    else:
+        st.info("No holdings data yet.")
