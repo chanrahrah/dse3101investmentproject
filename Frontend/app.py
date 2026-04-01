@@ -9,15 +9,9 @@ st.set_page_config(
     page_title="dse3101 project",
     layout="wide"
 )
-
-# title and new layout of buttons
-c_title, c_backtest = st.columns([8, 2], vertical_alignment="center")
-
-with c_title:
-    st.title("Dashboard")
     
 # date layout
-c1, c2, c3, c4 = st.columns([0.5, 0.2, 0.15, 0.15])
+c1, c2, c3, c4 = st.columns([0.6, 0.1, 0.1, 0.1])
 quarter_end_dates = [
     date(2025, 3, 31),
     date(2025, 6, 30),
@@ -26,7 +20,7 @@ quarter_end_dates = [
 ]
 
 with c1:
-    st.write("")
+    st.title("Copytrading Dashboard")
 
 with c2:
     fee_per_trade = add_fees()
@@ -54,10 +48,10 @@ with c4:
     )
 
 # configure left column for portfolio performance and right column for top 20 table
-col_left, col_right = st.columns([6, 4])
+col_left, col_right = st.columns([6, 4], gap = "large")
 
 with col_left:
-    st.header("Porfolio performance")
+    st.header("Overview of Portfolio")
     portfolio_performance()
     
 with col_right:
