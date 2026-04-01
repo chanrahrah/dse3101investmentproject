@@ -286,10 +286,17 @@ def portfolio_performance():
     profit_to_dd = None
     if max_drawdown != 0:
         profit_to_dd = cagr / abs(max_drawdown)
+    
+    quarterly_returns = pd.Series(portfolio_values).pct_change().dropna()
+    excess = quarterly_returns - RF_QUARTERLY
+    sharpe = (excess.mean() / excess.std()) * np.sqrt(4) if excess.std() != 0 else 0
+    downside = quarterly_returns[quarterly_returns < RF_QUARTERLY] - RF_QUARTERLY
+    downside_std = np.sqrt((downside ** 2).mean()) if len(downside) > 0 else 0
+    sortino = (excess.mean() / downside_std) * np.sqrt(4) if downside_std != 0 else 0
 
     metrics = [
-        ("Sharpe Ratio", 0.40, "number"),          # keep placeholder or backend later
-        ("Sortino Ratio", None, "number"),         # placeholder
+        ("Sharpe Ratio", sharpe, "number"),          # keep placeholder or backend later
+        ("Sortino Ratio", sortino, "number"),         # placeholder
         ("CAGR", cagr, "percent"),
         ("Max Drawdown", max_drawdown, "percent"),
         ("Starting Capital", starting_capital, "number"),
