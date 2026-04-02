@@ -12,20 +12,17 @@ import yfinance as yf
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+# ==========================================================
+# STANDARD PATHS AND CONFIG
+# ==========================================================
+from config import (
+    DEBUG,
+    PRICES_DS_ROOT,
+    MANIFEST_PATH,
+    RUN_META_PATH,
+    TICKER_SOURCE_PATH
+)
 
-# ---------------------------
-# Repo paths
-# ---------------------------
-
-HERE = Path(__file__).resolve()
-REPO_ROOT = HERE.parents[2]   # script -> transform -> Backend -> project root
-DATASETS_DIR = REPO_ROOT / "Datasets"
-
-PRICES_DS_ROOT = DATASETS_DIR / "stock_price_files"
-MANIFEST_PATH = PRICES_DS_ROOT / "_manifest.csv"
-RUN_META_PATH = PRICES_DS_ROOT / "_run_meta.csv"
-
-TICKER_SOURCE_PATH = DATASETS_DIR / "others" / "cusip_ticker_map.parquet"
 TICKER_COL = "ticker"
 SECURITY_TYPE_COL = "security_type"
 
@@ -100,6 +97,19 @@ def _partition_dir(root: Path, year: int) -> Path:
 
 def utc_now_str() -> str:
     return str(pd.Timestamp.now("UTC"))
+
+
+def wipe_year_partition(root: Path, year: int) -> None:
+    part_dir = _partition_dir(root, year)
+    if part_dir.exists():
+        shutil.rmtree(part_dir)
+
+
+def drop_manifest_year(manifest: pd.DataFrame, year: int) -> pd.DataFrame:
+    if manifest.empty:
+        return manifest
+
+    return manifest[manifest["year"] != year].copy().reset_index(drop=True)
 
 
 # ---------------------------
@@ -387,7 +397,7 @@ class BuildConfig:
     end_year: int = pd.Timestamp.now().year
     interval: str = "1d"
     chunk_size: int = 20
-    mode: str = "fresh"              # "fresh" or "update"
+    mode: str = "update"             # "fresh" or "update"
     limit_tickers: Optional[int] = None
     strict_ticker_filter: bool = True
 
@@ -421,6 +431,7 @@ def build_prices_dataset(
     cfg.out_root.mkdir(parents=True, exist_ok=True)
 
     manifest = load_manifest(MANIFEST_PATH)
+    live_year = pd.Timestamp.now().year
 
     if cfg.mode == "update":
         inferred_start = infer_resume_start_year(
@@ -431,13 +442,19 @@ def build_prices_dataset(
             max_attempts_per_ticker_year=cfg.max_attempts_per_ticker_year,
         )
 
-        if inferred_start > cfg.end_year:
+        refresh_live_year = cfg.start_year <= live_year <= cfg.end_year
+        effective_start = inferred_start
+
+        if refresh_live_year:
+            effective_start = min(effective_start, live_year)
+
+        if effective_start > cfg.end_year:
             print("[prices] all requested years already resolved")
             return manifest
 
-        if inferred_start != cfg.start_year:
-            print(f"[prices] update resume: shifting start_year from {cfg.start_year} to {inferred_start}")
-            cfg = replace(cfg, start_year=inferred_start)
+        if effective_start != cfg.start_year:
+            print(f"[prices] update resume: shifting start_year from {cfg.start_year} to {effective_start}")
+            cfg = replace(cfg, start_year=effective_start)
 
     print(f"[prices] Writing to: {cfg.out_root}")
     print(f"[prices] Tickers: {len(tickers)}")
@@ -448,8 +465,15 @@ def build_prices_dataset(
     for year in range(cfg.start_year, cfg.end_year + 1):
         year_start = f"{year}-01-01"
         year_end = f"{year + 1}-01-01"
+        is_live_year = (year == live_year)
 
         print(f"\n[prices] Year {year} ...")
+
+        if cfg.mode == "update" and is_live_year:
+            print(f"[prices]   live year refresh: clearing partition and manifest entries for {year}")
+            wipe_year_partition(cfg.out_root, year)
+            manifest = drop_manifest_year(manifest, year)
+            save_manifest(manifest, MANIFEST_PATH)
 
         if year_is_resolved(manifest, year, tickers, cfg.max_attempts_per_ticker_year):
             print(f"[prices]   year {year}: already resolved")
@@ -543,16 +567,18 @@ def build_prices_dataset(
 
                 for t in missing_tickers:
                     prev_attempts = get_attempt_count(manifest, year, t)
+                    missing_status = "retry" if is_live_year else "nodata"
+                    missing_error = "no_price_data_yet_for_live_year" if is_live_year else "no_price_data_for_full_year"
 
                     new_rows.append({
                         "year": year,
                         "ticker": t,
-                        "status": "nodata",
+                        "status": missing_status,
                         "rows": 0,
                         "min_date": None,
                         "max_date": None,
                         "attempts": prev_attempts + 1,
-                        "last_error": "no_price_data_for_full_year",
+                        "last_error": missing_error,
                         "updated_at": now_str,
                     })
 
@@ -569,7 +595,7 @@ def build_prices_dataset(
                     attempts = prev_attempts + 1
 
                     status = "retry"
-                    if attempts >= cfg.max_attempts_per_ticker_year:
+                    if (not is_live_year) and attempts >= cfg.max_attempts_per_ticker_year:
                         status = "nodata"
 
                     fail_rows.append({
@@ -670,7 +696,7 @@ def main() -> None:
         end_year=current_year,
         interval="1d",
         chunk_size=20,
-        mode="fresh",
+        mode="update",
         limit_tickers=None,
         strict_ticker_filter=False,
         sleep_between_chunks=2.0,
