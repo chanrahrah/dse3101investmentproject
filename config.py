@@ -36,7 +36,7 @@ DOWNLOAD_DIR = DATA_DIR
 ZIP_FOLDER   = DATA_DIR / "13F_zip_files" 
 
 # ==========================================================
-#  PATHS for transform
+#  PATHS for transform form13f data
 # ==========================================================
 RAW_DIR                 = DATA_DIR / "13F_zip_files"
 CLEAN_DIR               = DATA_DIR / "13F_clean_files"
@@ -46,23 +46,21 @@ MAPPER_DIR              = DATA_DIR / "others"
 TEMP_DIR                = PROJECT_ROOT / "temp"
 
 # ==========================================================
+# PATHS for transform stock price files
+# ==========================================================
+PRICES_DS_ROOT     = DATA_DIR / "stock_price_data"
+MANIFEST_PATH      = PRICES_DS_ROOT / "_manifest.csv"
+RUN_META_PATH      = PRICES_DS_ROOT / "_run_meta.csv"
+TICKER_SOURCE_PATH = MAPPER_DIR / "cusip_ticker_map.parquet"
+
+# ==========================================================
 # PATHS for backtesting
 # ==========================================================
-FORM13F_FOLDER_PATH = DATA_DIR / "13F_filtered_and_mapped_and_screened_files"
-PRICES_FILE_FULL    = DATA_DIR / "stock_price_data" / "stock_prices_all.parquet"
-FINAL_FILES_FOLDER  = DATA_DIR / "final_files"
+FORM13F_FOLDER_PATH          = DATA_DIR / "13F_filtered_and_mapped_and_screened_files"
+PRICES_FILE_FULL             = DATA_DIR / "stock_price_data" / "stock_prices_all.parquet"
+FINAL_FILES_FOLDER           = DATA_DIR / "final_files"
+BEST_INSTITUTION_RANKING_DIR = DATA_DIR / "best_instituition_ranking"
 
-# # ==========================================================
-# # ENSURE DIRECTORIES EXIST
-# # ==========================================================
-# for _dir in [
-#     RAW_DIR,
-#     CLEAN_DIR,
-#     FILTERED_AND_MAPPED_DIR,
-#     SCREENED_DIR,
-#     TEMP_DIR,
-#     FINAL_FILES_FOLDER,
-# ]:
-#     _dir.mkdir(parents=True, exist_ok=True)
+
 
 
