@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 def _get_latest_kaggle_timestamp(dataset: str) -> str:
     """Returns the most recent file creation date as a proxy for dataset version."""
     files = kaggle.api.dataset_list_files(dataset)
-    dates = [f.creation_date for f in files.files if f.creation_date]
+    dates = [f.creationDate for f in files.files if f.creationDate]
     latest = max(dates)
     return str(latest)
 
