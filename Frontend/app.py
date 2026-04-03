@@ -1,15 +1,28 @@
 import sys
+import pandas as pd
 from pathlib import Path
 from datetime import date
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR))
 
+STOCK_SNAPSHOT_PATH = ROOT_DIR / "Frontend" / "temp_data" / "stock_snapshot.parquet"
+
+stock_snapshot_df = None
+if STOCK_SNAPSHOT_PATH.exists():
+    stock_snapshot_df = pd.read_parquet(STOCK_SNAPSHOT_PATH)
+
 import streamlit as st
-from components.portfolio_performance import portfolio_performance
 from components.add_fees import add_fees
-from components.top_20 import top_20_table
+from components.top_20 import top_20_table, render_stock_details
 from Backend.backtesting.batch_process_rank_stocks import main
+
+try:
+    from components.portfolio_performance import portfolio_performance
+    portfolio_performance_import_error = None
+except Exception as e:
+    portfolio_performance = None
+    portfolio_performance_import_error = e
 
 # page set up and layout
 st.set_page_config(
@@ -98,10 +111,7 @@ try:
             userinput_start_date=from_date.strftime("%Y-%m-%d"),
             userinput_end_date=to_date.strftime("%Y-%m-%d"),
             userinput_initial_capital=float(initial_capital),
-            userinput_topN_institutions=int(topN_institutions),
             userinput_topN_stocks=int(topN),
-            userinput_lag=int(lag),
-            userinput_cost_rate=float(cost_rate),
         )
 except Exception as e:
     st.error(f"Error running backend: {e}")
@@ -109,17 +119,27 @@ except Exception as e:
 # main layout
 col_left, col_right = st.columns([6, 4])
 
+selected_tickers = None
+
 with col_left:
     st.header("Portfolio Performance")
-    portfolio_performance()
+    if portfolio_performance is not None:
+        portfolio_performance()
+    else:
+        st.warning("Portfolio Performance component could not be loaded.")
+        st.caption(str(portfolio_performance_import_error))
 
 with col_right:
     st.header("Top Stocks by Institutional Holdings")
     if portfolio_df is not None:
-        top_20_table(
+        selected_tickers = top_20_table(
             portfolio_df,
             top_n=int(topN),
             selected_quarter=from_date.strftime("%Y-%m-%d")
         )
     else:
         st.info("No holdings data yet.")
+
+st.markdown("---")
+st.header("Stock Details")
+render_stock_details(selected_tickers, stock_snapshot_df)
