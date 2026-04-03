@@ -18,13 +18,19 @@ except Exception as e:
     portfolio_performance = None
     portfolio_performance_import_error = e
 
-STOCK_SNAPSHOT_PATH = ROOT_DIR / "Frontend" / "temp_data" / "stock_snapshot.parquet"
+STOCK_SNAPSHOT_PATH = ROOT_DIR / "Frontend" / "temp" / "stock_snapshot.parquet"
+
+stock_snapshot_df = None
+if STOCK_SNAPSHOT_PATH.exists():
+    stock_snapshot_df = pd.read_parquet(STOCK_SNAPSHOT_PATH)
 
 
-def load_stock_snapshot():
-    if STOCK_SNAPSHOT_PATH.exists():
-        return pd.read_parquet(STOCK_SNAPSHOT_PATH)
-    return None
+try:
+    from components.portfolio_performance import portfolio_performance
+    portfolio_performance_import_error = None
+except Exception as e:
+    portfolio_performance = None
+    portfolio_performance_import_error = e
 
 
 def get_available_quarter_dates():
@@ -73,7 +79,6 @@ def get_available_quarter_dates():
 st.set_page_config(page_title="dse3101 project", layout="wide")
 st.title("Dashboard")
 
-stock_snapshot_df = load_stock_snapshot()
 
 try:
     quarter_end_dates = get_available_quarter_dates()
@@ -138,38 +143,44 @@ with c6:
     )
 
 date_diff_days = (to_date - from_date).days
-max_lag = max(date_diff_days - 2, 0)
+
+usable_max_lag = max(date_diff_days - 2, 0)
 
 if "lag" not in st.session_state:
-    st.session_state["lag"] = min(47, max_lag)
+    st.session_state["lag"] = min(47, usable_max_lag)
 else:
-    st.session_state["lag"] = min(st.session_state["lag"], max_lag)
+    st.session_state["lag"] = min(st.session_state["lag"], usable_max_lag)
 
 with c7:
     lag = st.number_input(
         "Lag",
         min_value=0,
-        max_value=int(max_lag),
+        max_value=int(usable_max_lag),
         step=1,
         key="lag",
-        disabled=(max_lag == 0),
+        disabled=(usable_max_lag == 0),
         help=(
-            f"Maximum usable lag for this date range is {max_lag} days. "
+            f"Maximum usable lag for this date range is {usable_max_lag} days. "
             "If you need a larger lag, widen the date range."
         ),
     )
 
+lag_invalid = False
+
 if date_diff_days <= 1:
     st.error("Selected date range is too short. Please choose a later end quarter.")
-    st.stop()
-
-if max_lag == 0:
+    lag_invalid = True
+elif usable_max_lag == 0:
     st.warning("No lag is available for this date range. Please choose a wider date range.")
-elif lag >= max_lag:
+    lag_invalid = True
+elif lag == usable_max_lag and usable_max_lag > 0:
     st.warning(
-        f"You have reached the maximum usable lag of {max_lag} days for this date range. "
+        f"You have reached the maximum usable lag of {usable_max_lag} days for this date range. "
         "Choose a smaller lag or a wider date range if you want more flexibility."
     )
+
+if lag_invalid:
+    st.stop()
 
 portfolio_df = None
 metrics_df = None
@@ -185,19 +196,15 @@ try:
 except Exception as e:
     st.error(f"Error running backend: {e}")
 
+# main layout
 col_left, col_right = st.columns([3, 1])
+
 selected_tickers = None
 
 with col_left:
     st.header("Portfolio Performance")
     if portfolio_performance is not None:
-        try:
-            portfolio_performance()
-        except Exception as e:
-            st.warning(
-                "The selected lag may be too high for this date range, leaving insufficient "
-                f"data for performance calculation. Please reduce lag or widen the date range."
-            )
+        portfolio_performance()
     else:
         st.warning("Portfolio Performance component could not be loaded.")
         st.caption(str(portfolio_performance_import_error))
@@ -208,7 +215,7 @@ with col_right:
         selected_tickers = top_20_table(
             portfolio_df,
             top_n=int(topN),
-            selected_quarter=from_date.strftime("%Y-%m-%d"),
+            selected_quarter=from_date.strftime("%Y-%m-%d")
         )
     else:
         st.info("No holdings data yet.")

@@ -3,8 +3,11 @@ import pandas as pd
 
 
 def format_value(value, value_type="text"):
-    if pd.isna(value):
-        return "N/A"
+    try:
+        if pd.isna(value):
+            return "N/A"
+    except (TypeError, ValueError):
+        pass
 
     if value_type == "market_cap":
         abs_value = abs(value)
@@ -80,55 +83,65 @@ def get_stock_details(selected_ticker, stock_snapshot_df):
     if stock_snapshot_df is None or stock_snapshot_df.empty:
         return default_details
 
-    stock_row = stock_snapshot_df[stock_snapshot_df["ticker"] == selected_ticker]
+    if "ticker" not in stock_snapshot_df.columns:
+        return default_details
+
+    stock_row = stock_snapshot_df[
+        stock_snapshot_df["ticker"].astype(str).str.strip().str.upper()
+        == str(selected_ticker).strip().upper()
+    ]
+
     if stock_row.empty:
         return default_details
 
     stock_row = stock_row.iloc[0]
 
     return {
-        "Market Cap": format_value(stock_row.get("market_cap"), "market_cap"),
-        "PE Ratio": format_value(stock_row.get("pe_ratio"), "ratio"),
-        "EPS": format_value(stock_row.get("eps"), "eps"),
-        "Beta": format_value(stock_row.get("beta"), "beta"),
-        "Forward Dividend Yield": format_value(stock_row.get("forward_dividend_yield"), "percent"),
-        "Current Price": format_value(stock_row.get("close"), "price"),
-        "Previous Close": format_value(stock_row.get("previous_close"), "price"),
-        "1Y Target Est": format_value(stock_row.get("one_year_target_est"), "target"),
-        "52 Week High": format_value(stock_row.get("fifty_two_week_high"), "price"),
-        "52 Week Low": format_value(stock_row.get("fifty_two_week_low"), "price"),
-        "Day High": format_value(stock_row.get("day_high"), "price"),
-        "Day Low": format_value(stock_row.get("day_low"), "price"),
-        "Volume": format_value(stock_row.get("volume"), "volume"),
-        "Avg Volume": format_value(stock_row.get("avg_volume"), "volume"),
-        "Bid": format_value(stock_row.get("bid"), "price"),
-        "Ask": format_value(stock_row.get("ask"), "price"),
-        "Exchange Country": format_value(stock_row.get("exchange_country")),
-        "Earnings Date": format_value(stock_row.get("earnings_date"), "date"),
-        "Ex-Dividend Date": format_value(stock_row.get("ex_dividend_date"), "date"),
+        "Market Cap": format_value(stock_row["market_cap"], "market_cap"),
+        "PE Ratio": format_value(stock_row["pe_ratio"], "ratio"),
+        "EPS": format_value(stock_row["eps"], "eps"),
+        "Beta": format_value(stock_row["beta"], "beta"),
+        "Forward Dividend Yield": format_value(stock_row["forward_dividend_yield"], "percent"),
+        "Current Price": format_value(stock_row["close"], "price"),
+        "Previous Close": format_value(stock_row["previous_close"], "price"),
+        "1Y Target Est": format_value(stock_row["one_year_target_est"], "target"),
+        "52 Week High": format_value(stock_row["fifty_two_week_high"], "price"),
+        "52 Week Low": format_value(stock_row["fifty_two_week_low"], "price"),
+        "Day High": format_value(stock_row["day_high"], "price"),
+        "Day Low": format_value(stock_row["day_low"], "price"),
+        "Volume": format_value(stock_row["volume"], "volume"),
+        "Avg Volume": format_value(stock_row["avg_volume"], "volume"),
+        "Bid": format_value(stock_row["bid"], "price"),
+        "Ask": format_value(stock_row["ask"], "price"),
+        "Exchange Country": format_value(stock_row["exchange_country"]),
+        "Earnings Date": format_value(stock_row["earnings_date"], "date"),
+        "Ex-Dividend Date": format_value(stock_row["ex_dividend_date"], "date"),
     }
-
 
 def top_20_table(portfolio_df, top_n=10, selected_quarter=None):
     if portfolio_df is None or portfolio_df.empty:
         st.info("No holdings data available.")
         return None
 
-    quarter_df = portfolio_df.drop_duplicates(subset=["quarter"]).copy()
+    df = portfolio_df.copy()
 
-    if "tickers" not in quarter_df.columns or quarter_df.empty:
+    if "tickers" not in df.columns:
         st.info("No ticker data available.")
         return None
 
-    quarter_df["quarter"] = quarter_df["quarter"].astype(str)
+    df["quarter"] = pd.to_datetime(df["quarter"], errors="coerce")
+    df = df.dropna(subset=["quarter"])
+    df["quarter_str"] = df["quarter"].dt.strftime("%Y-%m-%d")
 
-    if selected_quarter is not None and selected_quarter in quarter_df["quarter"].values:
-        selected_row = quarter_df[quarter_df["quarter"] == selected_quarter].iloc[0]
+    if selected_quarter is not None and selected_quarter in df["quarter_str"].values:
+        selected_df = df[df["quarter_str"] == selected_quarter]
+        selected_row = selected_df.iloc[0]
         st.caption(f"Showing selected quarter: {selected_quarter}")
     else:
-        quarter_df = quarter_df.sort_values("quarter")
-        selected_row = quarter_df.iloc[-1]
-        st.caption(f"Showing latest available quarter: {selected_row['quarter']}")
+        latest_quarter = df["quarter"].max()
+        selected_df = df[df["quarter"] == latest_quarter]
+        selected_row = selected_df.iloc[0]
+        st.caption(f"Showing latest available quarter: {latest_quarter.strftime('%Y-%m-%d')}")
 
     tickers = selected_row["tickers"]
 
@@ -164,47 +177,50 @@ def top_20_table(portfolio_df, top_n=10, selected_quarter=None):
 
 
 def render_stock_details(tickers, stock_snapshot_df):
+    """
+    tickers: list of ticker strings returned by top_20_table()
+    stock_snapshot_df: the loaded parquet DataFrame
+    """
     if not tickers:
         st.info("Select a stock to view more details.")
         return
 
+    # Let the user pick one ticker from the list
     selected_ticker = st.selectbox(
         "Select a stock to view more details:",
-        tickers,
-        key="selected_ticker_details"
+        options=tickers,
+        key="selected_ticker_details",
     )
 
     details = get_stock_details(selected_ticker, stock_snapshot_df)
 
-    st.markdown(f"**{selected_ticker} Details**")
+    st.subheader(f"{selected_ticker} Details")
     st.caption("Stock information accurate as of 2 April 2026 (US market close)")
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Market Cap", details["Market Cap"])
     c2.metric("PE Ratio", details["PE Ratio"])
     c3.metric("Earnings Per Share", details["EPS"])
     c4.metric("Beta", details["Beta"])
-
-    c5, c6, c7, c8 = st.columns(4)
     c5.metric("Forward Dividend Yield", details["Forward Dividend Yield"])
+
+    c6, c7, c8, c9, c10 = st.columns(5)
     c6.metric("Current Price", details["Current Price"])
     c7.metric("Previous Close", details["Previous Close"])
-    c8.metric("1Y Target", details["1Y Target Est"])
-
-    c9, c10, c11, c12 = st.columns(4)
+    c8.metric("1Y Target Est", details["1Y Target Est"])
     c9.metric("52 Week High", details["52 Week High"])
     c10.metric("52 Week Low", details["52 Week Low"])
+
+    c11, c12, c13, c14, c15 = st.columns(5)
     c11.metric("Day High", details["Day High"])
     c12.metric("Day Low", details["Day Low"])
-
-    c13, c14, c15, c16 = st.columns(4)
     c13.metric("Volume", details["Volume"])
-    c14.metric("Average Volume", details["Avg Volume"])
-    c15.metric("Bid", details["Bid"])
-    c16.metric("Ask", details["Ask"])
+    c14.metric("Avg Volume", details["Avg Volume"])
+    c15.metric("Exchange Country", details["Exchange Country"])
 
-    c17, c18, c19, c20 = st.columns(4)
-    c17.metric("Exchange Country", details["Exchange Country"])
+    c16, c17, c18, c19, c20 = st.columns(5)
+    c16.metric("Bid", details["Bid"])
+    c17.metric("Ask", details["Ask"])
     c18.metric("Earnings Date", details["Earnings Date"])
     c19.metric("Ex-Dividend Date", details["Ex-Dividend Date"])
     c20.empty()
