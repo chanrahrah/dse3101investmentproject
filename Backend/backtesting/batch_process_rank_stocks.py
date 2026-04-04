@@ -16,11 +16,7 @@ from Backend.backtesting.rank_stocks_helper_functions import (
     apply_filing_lag_and_get_trade_prices,
     extract_price_subset,
     run_backtest,
-)
-from Backend.backtesting.evaluation_portfolio_helper_functions import (
-    load_spy,
-    get_comparison_df,
-    compute_metrics,
+    get_spy_df,
 )
 
 # ==========================================================
@@ -35,6 +31,7 @@ from config import (
     DATA_DIR,
     FORM13F_FOLDER_PATH,
     PRICES_FILE_FULL,
+    SPY_DATA_DIR,
     FINAL_FILES_FOLDER,
 )
 
@@ -65,7 +62,6 @@ def run_strategy(
     initial_capital: float,
     topN_institutions: int = 10,
     topN_stocks: int = 10,
-    lag: int = 47,
     cost_rate: float = 0.001,
 ) -> "pd.DataFrame":
     """
@@ -96,7 +92,7 @@ def run_strategy(
         quarter_return   -- total return for that quarter (repeated for every day in quarter)
     """
     logger.info("[INFO] Running strategy START")
-    # 1. Dynamically load holdings and price data based on userinput_topN_institutions
+    # 1. Dynamically load holdings and price data based on userinput_topM_institutions
     holdings = load_holdings(final_files_folder/f"final_top{topN_institutions}_form13f.parquet")
     logger.info("[INFO] Holdings loaded")
     prices   = load_prices(final_files_folder/f"final_top{topN_institutions}_prices.parquet")
@@ -113,17 +109,16 @@ def run_strategy(
     logger.info("[INFO] Stocks ranked and top {topN_stocks} extracted per quarter")
 
     # 4. Compute candidate trade_date = earliest FILING_DATE + lag + get trade prices
-    topN = apply_filing_lag_and_get_trade_prices(topN, prices, lag_days=lag)
+    topN = apply_filing_lag_and_get_trade_prices(topN, prices)
     logger.info("[INFO] Lagging applied and trade prices obtained")
 
-    # 6. Narrow prices to only the tickers we actually hold (memory efficiency)
+    # 5. Narrow prices to only the tickers we actually hold (memory efficiency)
     prices_subset = extract_price_subset(prices, topN)
     logger.info("[INFO] Extracted price subset")
 
-    # 7. Run the back-test
+    # 6. Run the back-test
     logger.info("[INFO] Backtesting START")
-
-    portfolio = run_backtest(topN, prices_subset, initial_capital, cost_rate=cost_rate, end_date=end_date)
+    portfolio = run_backtest(topN, prices_subset, initial_capital, cost_rate=cost_rate, start_date=start_date, end_date=end_date)
 
     logger.info("[INFO] Backtesting END")
     logger.info("[INFO] Portoflio dataframe obtained")
@@ -132,44 +127,22 @@ def run_strategy(
     return portfolio
 
 # ===========================================================
-# 3. Run evaluation
+# 3. Get comparison df of strategy vs SPY
 # ===========================================================
-def run_evaluation(portfolio_df, start_date, end_date, initial_capital):
+def run_comparision(portfolio_df: pd.DataFrame, spy_file_path: Path, start_date: str, end_date: str, initial_capital: float) -> pd.DataFrame:
+    logger.info("[INFO] Running comparison of strategy vs SPY START")
+    raw_spy_df = pd.read_parquet(spy_file_path)
+    spy_df = get_spy_df(raw_spy_df, start_date, end_date, initial_capital)
 
-    logger.info("[INFO] Running evaluation START")
-    # 1. Get SPY data as benchmark for comparison, to evaluate our strategy performance against the overall market.
-    spy_df = load_spy(start_date, end_date)
-    logger.info("[INFO] SPY data loaded")
+    # Ensure date columns are same type before merging
+    portfolio_df["date"] = pd.to_datetime(portfolio_df["date"])
+    spy_df["date"] = pd.to_datetime(spy_df["date"])
 
-    # 2. Get comparison data (portfolio + SPY)
-    comparison = get_comparison_df(portfolio_df, spy_df)
-
-    # 3. Compute 13F Copycat strategy metrics
-    strategy_metrics = compute_metrics(
-        returns          = comparison["daily_return"].dropna(),
-        label            = "13F Copycat",
-        initial_capital  = initial_capital,
-        portfolio_values = comparison["portfolio_value"],
-    )
-    logger.info("[INFO] 13F copycat strategy metrics computed")
-
-    # 4. Compute SPY metrics
-    spy_metrics = compute_metrics(
-        returns          = comparison["spy_daily_return"].dropna(),
-        label            = "SPY",
-        initial_capital  = initial_capital,
-        portfolio_values = comparison["spy_adj_close"] / comparison["spy_adj_close"].iloc[0] * initial_capital,
-    )
-    logger.info("[INFO] SPY data metrics computed")
-
-    # return metrics_df
-    metrics_df = pd.DataFrame([strategy_metrics, spy_metrics]).set_index("label")
-
-    logger.info("[INFO] Evaluation of portfolio END.")
-    logger.info("[INFO] Metrics dataframe obtained")
-
-    return metrics_df
-
+    # Merge portfolio and spy_df by date
+    comparison_df = portfolio_df.merge(spy_df[["date", "spy_daily_return", "spy_cum_return", "spy_portfolio_value"]], on="date", how="left")
+    
+    logger.info("[INFO] Comparison dataframe obtained")
+    return comparison_df
 
 # ===========================================================
 # MAIN RUN
@@ -177,9 +150,8 @@ def run_evaluation(portfolio_df, start_date, end_date, initial_capital):
 def main(userinput_start_date, 
          userinput_end_date, 
          userinput_initial_capital,
-         userinput_topN_institutions = 10, 
+         userinput_topM_institutions = 10, 
          userinput_topN_stocks = 10,
-         userinput_lag = 47,
          userinput_cost_rate = 0.001):
     
     # To track time taken to run main()
@@ -191,62 +163,53 @@ def main(userinput_start_date,
         start_date=userinput_start_date,
         end_date=userinput_end_date,
         initial_capital = userinput_initial_capital,
-        topN_institutions = userinput_topN_institutions,
+        topN_institutions = userinput_topM_institutions,
         topN_stocks = userinput_topN_stocks,
-        lag=userinput_lag,
         cost_rate=userinput_cost_rate
     )
 
-    # 2. run evaluation
-    metrics_df = run_evaluation(
-        portfolio_df,
-        start_date=userinput_start_date,
-        end_date=userinput_end_date,
-        initial_capital=userinput_initial_capital
-    )
+    # 2. get comparison df of strategy vs SPY
+    full_df = run_comparision(portfolio_df, SPY_DATA_DIR, userinput_start_date, userinput_end_date, userinput_initial_capital)
     
     logging.info(f"Time taken to run main(): {time.perf_counter() - start:.2f}s")
 
-    return portfolio_df, metrics_df
+    return portfolio_df, full_df
 # ---------------------------------------------------------------------------
 # RUN
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
 
     if not DEBUG:
-        # Perform all the steps in production mode. 
+        # Perform all the steps only in production mode. 
         # Get final files for top 10 institutions
-        TOP_10_INSTITUTIONS = ["0001767601", "0000857508", "0001727993", "0000914976", "0001767898", "0000872259", "0001482935", "0001536446", "0001017115", "0001082339"]
+        TOP_10_INSTITUTIONS = ['0000914976','0001767601','0001482935','0001697233','0000872259','0001536446','0001017115','0001641447','0001727993','0001502149']
         get_final_files(TOP_10_INSTITUTIONS, FORM13F_FOLDER_PATH, PRICES_FILE_FULL, FINAL_FILES_FOLDER)
         # Get final files for top 20 institutions
-        TOP_20_INSTITUTIONS = ["0001767601", "0000857508", "0001727993", "0000914976", "0001767898", "0000872259", "0001482935", "0001536446", "0001017115", "0001082339", 
-                               "0001697233", "0001502149", "0001080369", "0001751581", "0001592746", "0001747799", "0001004244", "0001138486", "0001698777", "0001455251"]
+        TOP_20_INSTITUTIONS = ['0000914976','0001767601','0001482935','0001697233','0000872259','0001536446','0001017115','0001641447','0001727993','0001502149',
+                               '0001308685','0001641643','0001080369','0001455251','0001767898','0001082339','0001004244','0001698777','0001592746','0001510434']
         get_final_files(TOP_20_INSTITUTIONS, FORM13F_FOLDER_PATH, PRICES_FILE_FULL, FINAL_FILES_FOLDER)
         # Get final files for top 30 institutions
-        TOP_30_INSTITUTIONS = ["0001767601", "0000857508", "0001727993", "0000914976", "0001767898", "0000872259", "0001482935", "0001536446", "0001017115", "0001082339", 
-                               "0001697233", "0001502149", "0001080369", "0001751581", "0001592746", "0001747799", "0001004244", "0001138486", "0001698777", "0001455251", 
-                               "0001691827", "0001764387", "0000866590", "0001510434", "0001308685", "0001744317", "0001600999", "0001667134", "0001641447", "0001670104"]
+        TOP_30_INSTITUTIONS = ['0000914976','0001767601','0001482935','0001697233','0000872259','0001536446','0001017115','0001641447','0001727993','0001502149',
+                               '0001308685','0001641643','0001080369','0001455251','0001767898','0001082339','0001004244','0001698777','0001592746','0001510434',
+                               '0001667134','0001120048','0001600999','0001020580','0001764387','0001747799','0001512026','0001054646','0000866590','0001033225']
         get_final_files(TOP_30_INSTITUTIONS, FORM13F_FOLDER_PATH, PRICES_FILE_FULL, FINAL_FILES_FOLDER)
 
     # Change user inputs here:
-    userinput_start_date = '2024-12-31' 
-    userinput_end_date = '2026-03-31'
+    userinput_start_date = '2015-04-01' 
+    userinput_end_date = '2025-11-20'
     userinput_initial_capital = 10_000
-    userinput_topN = 10 # default at 10. User can choose any topN stocks to hold per quarter.
-    userinput_topN_institutions= 10 # default at 10. User can choose between 10,20,30 top institutions.
-    userinput_lag = 47 # default at 47. (allow user to change as they like, may not include this in the end)
+    userinput_topM_institutions= 20 # default at 10. User can choose between 10,20,30 top institutions.
+    userinput_topN = 18 # default at 10. User can choose any topN stocks to hold per quarter.
     userinput_cost_rate = 0.001  # default at 0.001. transaction cost as a fraction of traded dollar value (default 0.001 = 0.1%)
 
-    portfolio_df, metric_df = main(userinput_start_date, 
+    portfolio_df, full_df = main(userinput_start_date, 
                                     userinput_end_date, 
                                     userinput_initial_capital,
+                                    userinput_topM_institutions,
                                     userinput_topN,
-                                    userinput_topN_institutions,
-                                    userinput_lag,
                                     userinput_cost_rate)
     
-    # --> maybe can upload as parquet file? for frontend to read?
 
     # To check the outputs on excel
     portfolio_df.to_csv((DATA_DIR / "data_for_frontend" / "portfolio.csv"))
-    metric_df.to_csv((DATA_DIR / "data_for_frontend" / "metrics.csv"))
+    full_df.to_csv((DATA_DIR / "data_for_frontend" / "full.csv"))

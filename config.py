@@ -50,8 +50,15 @@ TEMP_DIR                = PROJECT_ROOT / "temp"
 # ==========================================================
 PRICES_DS_ROOT     = DATA_DIR / "stock_price_data"
 MANIFEST_PATH      = PRICES_DS_ROOT / "_manifest.csv"
-RUN_META_PATH      = PRICES_DS_ROOT / "_run_meta.csv"
+RUN_META_PATH_STOCK      = PRICES_DS_ROOT / "_run_meta.csv"
 TICKER_SOURCE_PATH = MAPPER_DIR / "cusip_ticker_map.parquet"
+
+# ==========================================================
+# PATHS for transform SPY stock price files
+# ==========================================================
+SPY_DS_ROOT = DATA_DIR / "SPY_price_data"
+SPY_DATA_DIR = SPY_DS_ROOT / "spy_prices_2013-01-01_to_2026-03-31.parquet"
+RUN_META_PATH_SPY = SPY_DS_ROOT / "_run_meta.csv"
 
 # ==========================================================
 # PATHS for backtesting

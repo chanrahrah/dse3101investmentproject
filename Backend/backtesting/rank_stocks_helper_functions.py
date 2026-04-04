@@ -58,12 +58,31 @@ def load_prices(file_path: str) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def filter_dates(df: pd.DataFrame, start_date: str, end_date: str) -> pd.DataFrame:
-    """Keep rows whose PERIODOFREPORT falls within [start_date, end_date]."""
+    """
+    Keep rows where PERIODOFREPORT is between start_date and end_date,
+    PLUS the two most recent quarters available before start_date.
+    """
     return con.execute(f"""
-        SELECT *
+        WITH prior_periods AS (
+            -- Get the 2 distinct latest report dates before the start_date
+            SELECT DISTINCT PERIODOFREPORT
+            FROM df
+            WHERE PERIODOFREPORT < CAST('{start_date}' AS DATE)
+            ORDER BY PERIODOFREPORT DESC
+            LIMIT 2
+        ),
+        min_prior AS (
+            -- Find the oldest of those 2 quarters
+            SELECT MIN(PERIODOFREPORT) as start_cutoff FROM prior_periods
+        )
+        SELECT df.*
         FROM df
-        WHERE PERIODOFREPORT >= CAST('{start_date}' AS DATE)
+        WHERE PERIODOFREPORT >= COALESCE(
+            (SELECT start_cutoff FROM min_prior), 
+            CAST('{start_date}' AS DATE)
+        )
           AND PERIODOFREPORT <= CAST('{end_date}' AS DATE)
+        ORDER BY PERIODOFREPORT, ticker
     """).df()
 
 # -----------------------------------------------------------------------------------------------
@@ -108,7 +127,7 @@ def rank_topN(df: pd.DataFrame, topN: int = 10) -> pd.DataFrame:
 # -----------------------------------------------------------------------------------------------
 
 
-def apply_filing_lag_and_get_trade_prices(df: pd.DataFrame, prices: pd.DataFrame, lag_days: int = 47) -> pd.DataFrame:
+def apply_filing_lag_and_get_trade_prices(df: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
     """
     For each (quarter, ticker):
       1. Compute candidate_date = PERIODOFREPORT + lag_days.
@@ -131,7 +150,7 @@ def apply_filing_lag_and_get_trade_prices(df: pd.DataFrame, prices: pd.DataFrame
         WITH lagged AS (
             SELECT
                 *,
-                CAST(PERIODOFREPORT AS DATE) + INTERVAL '{lag_days} days' AS candidate_date
+                CAST(PERIODOFREPORT AS DATE) + INTERVAL '47 days' AS candidate_date
             FROM df
         )
         SELECT
@@ -180,6 +199,7 @@ def run_backtest(topN: pd.DataFrame,
                  prices: pd.DataFrame,
                  initial_capital: float,
                  cost_rate: float = 0.001,
+                 start_date=None,
                  end_date=None) -> pd.DataFrame:
     """
     Equal-weight quarterly rebalance back-test.
@@ -246,6 +266,36 @@ def run_backtest(topN: pd.DataFrame,
              .first()
              .to_dict()
     )
+
+    # ---- SNAP FIRST TRADE DATE to start_date if needed ---------------
+    # If start_date falls between first and second quarter's trade_date,
+    # override the first quarter's trade_date to start_date so the
+    # holding period begins from the user's requested start date.
+    if start_date is not None:
+        start_dt = pd.to_datetime(start_date).date()
+        available_dates = sorted(prices["date"].unique())
+
+        # Drop any quarters whose trade_date is already before start_date
+        # (these were pulled in by filter_dates but are not needed)
+        quarters_before_start = [
+            q for q in quarters
+            if trade_date_map[q] < start_dt
+        ]
+        if quarters_before_start:
+            last_before = max(quarters_before_start)  # the quarter straddling start_date
+            # Drop all quarters strictly before last_before
+            quarters = [q for q in quarters if q >= last_before]
+            topN = topN[topN["PERIODOFREPORT"] >= last_before].copy()
+
+            # Snap start_date forward to next available trading day
+            snapped = next((d for d in available_dates if d >= start_dt), None)
+            if snapped is None:
+                raise ValueError(f"No trading days found on or after start_date {start_date}")
+
+            # Override that quarter's trade_date to snapped start_date
+            trade_date_map[last_before] = snapped
+            topN.loc[topN["PERIODOFREPORT"] == last_before, "trade_date"] = snapped
+
  
     # ---- tickers per quarter -----------------------------------------
     tickers_map: dict = (
@@ -258,14 +308,14 @@ def run_backtest(topN: pd.DataFrame,
     # Same values as trade_date_map but kept separate for clarity
     trade_date_label_map: dict = trade_date_map.copy()
 
-    # ---- EXTEND TO end_date using last quarter's holdings ------------
+    # ---- EXTEND OR TRUNCATE TO end_date using last quarter's holdings ----
     if end_date is not None:
         end_date = pd.to_datetime(end_date).date()
         last_quarter = quarters[-1]
         last_trade_date = trade_date_map[last_quarter]
 
-        # Only add phantom if end_date extends beyond the last trade date
         if end_date > last_trade_date:
+            # Extend: add phantom quarter to push the last holding period to end_date
             phantom_quarter = end_date + timedelta(days=1)
 
             trade_date_map[phantom_quarter]       = phantom_quarter
@@ -273,7 +323,20 @@ def run_backtest(topN: pd.DataFrame,
             trade_date_label_map[phantom_quarter] = phantom_quarter
 
             quarters = quarters + [phantom_quarter]
-    # ------------------------------------------------------------------
+
+        elif end_date < last_trade_date:
+            # Truncate: drop all quarters whose trade_date is after end_date,
+            # then add a phantom to act as the period_end boundary
+            quarters = [q for q in quarters if trade_date_map[q] <= end_date]
+            last_quarter = quarters[-1]
+
+            phantom_quarter = end_date + timedelta(days=1)
+
+            trade_date_map[phantom_quarter]       = phantom_quarter
+            tickers_map[phantom_quarter]          = tickers_map[last_quarter]
+            trade_date_label_map[phantom_quarter] = phantom_quarter
+
+            quarters = quarters + [phantom_quarter]
  
     # ---- holding period per quarter ----------------------------------
     # holding_period = trade_date[q] to last trading day before trade_date[q+1]
@@ -290,8 +353,8 @@ def run_backtest(topN: pd.DataFrame,
     )
     adj_close_wide = adj_close_wide.ffill()   # forward-fill any gaps
  
-    # ---- wide open price table for rebalance execution ---------------
-    # Only needed on trade_dates; we look up per-ticker open on demand
+    # ---- wide adj_open table for rebalance execution ---------------
+    # Only needed on trade_dates; we look up per-ticker adj_open on demand
     adj_open_wide = (
         prices
         .pivot_table(index="date", columns="ticker", values="adj_open")
@@ -314,17 +377,16 @@ def run_backtest(topN: pd.DataFrame,
         q_tickers  = tickers_map[q_now]
  
         # holding period: trade_date[q] to last trading day before trade_date[q+1]
-        last_trading_day = adj_close_wide.index[adj_close_wide.index < period_end][-1]
-        holding_period_map[q_now] = f"{period_start} to {last_trading_day}"
+        holding_period_map[q_now] = f"{period_start} to {period_end}"
  
-        # ── Get open prices for this rebalance date ───────────────────
+        # ── Get adj_open prices for this rebalance date ───────────────────
         if period_start not in adj_open_wide.index:
             raise ValueError(f"No adjusted open data for trade date {period_start}")
-        open_row = adj_open_wide.loc[period_start]
+        adj_open_row = adj_open_wide.loc[period_start]
  
         def get_price(ticker: str) -> float:
             """Return adjusted open price for ticker on rebalance date."""
-            val = open_row.get(ticker, float("nan"))
+            val = adj_open_row.get(ticker, float("nan"))
             return float(val) if pd.notna(val) and val > 0 else float("nan")
  
         new_tickers  = set(stocks_now.index)
@@ -334,7 +396,7 @@ def run_backtest(topN: pd.DataFrame,
         entries = new_tickers  - prev_tickers         # buy fresh
         stayers = prev_tickers & new_tickers          # adjust weight only
  
-        # ── Step 1: mark total portfolio value to market at today's open ─
+        # ── Step 1: mark total portfolio value to market at today's adj_open ─
         # We need the total $ value to compute equal-weight target allocations.
         if positions:
             portfolio_value = sum(
@@ -345,7 +407,7 @@ def run_backtest(topN: pd.DataFrame,
  
         # ── Step 2: rebalance with transaction costs ─────────────
 
-        # Step 2a — compute CURRENT values at open
+        # Step 2a — compute CURRENT values at adj_open
         current_values = {}
         for tkr, shares in positions.items():
             px = get_price(tkr)
@@ -389,11 +451,11 @@ def run_backtest(topN: pd.DataFrame,
         new_positions: dict[str, float] = {}
 
         for ticker, srow in stocks_now.iterrows():
-            open_price = get_price(ticker)
-            if np.isnan(open_price) or open_price <= 0:
+            adj_open_price = get_price(ticker)
+            if np.isnan(adj_open_price) or adj_open_price <= 0:
                 continue
 
-            new_positions[ticker] = target_allocation / open_price
+            new_positions[ticker] = target_allocation / adj_open_price
 
         positions = new_positions
 
@@ -430,9 +492,11 @@ def run_backtest(topN: pd.DataFrame,
  
     # daily_return: pct change across consecutive trading days (crosses quarter boundaries)
     result["daily_return"] = result["portfolio_value"].pct_change()
- 
+    result.loc[result.index[0], "daily_return"] = 0.0
+
     # cum_return: total return from inception
-    result["cum_return"] = (result["portfolio_value"] / initial_capital) - 1
+    first_value = result["portfolio_value"].iloc[0]
+    result["cum_return"] = (result["portfolio_value"] / first_value) - 1
  
     # quarter_return: (last adj_close value of quarter / first adj_close value) - 1
     q_end = result.groupby("quarter")["portfolio_value"].last().rename("_q_end_val")
@@ -462,3 +526,21 @@ def run_backtest(topN: pd.DataFrame,
         ]]
  
     return result
+
+def get_spy_df(spy_df: pd.DataFrame, start_date: str, end_date: str, initial_capital: float) -> pd.DataFrame:
+
+    # 1. Prep SPY side
+    spy = spy_df[["date", "adj_close"]].copy()
+    spy["date"] = pd.to_datetime(spy["date"])
+    spy = spy.sort_values("date").reset_index(drop=True)
+
+    # 2. Filter SPY to strategy date range
+    spy = spy[(spy["date"] >= pd.to_datetime(start_date)) & (spy["date"] <= pd.to_datetime(end_date))]
+
+    # 3. Compute SPY daily return and cum return, anchored to same start as strategy
+    spy["spy_daily_return"] = spy["adj_close"].pct_change()
+    spy.loc[spy.index[0], "spy_daily_return"] = 0.0  # anchor first day to 0
+    spy["spy_cum_return"] = (1 + spy["spy_daily_return"]).cumprod() - 1
+    spy["spy_portfolio_value"] = initial_capital * (1 + spy["spy_cum_return"])
+
+    return spy[["date", "spy_daily_return", "spy_cum_return", "spy_portfolio_value"]]
