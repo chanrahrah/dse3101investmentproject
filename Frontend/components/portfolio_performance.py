@@ -377,7 +377,7 @@ def portfolio_performance():
     values_with_anchor = [starting_capital] + portfolio_values
     quarterly_returns = pd.Series(values_with_anchor).pct_change().dropna()
     excess = quarterly_returns - RF_QUARTERLY
-    sharpe = (excess.mean() / excess.std()) * np.sqrt(4) if excess.std() != 0 else 0
+    sharpe = (excess.mean() / quarterly_returns.std()) * np.sqrt(4) if quarterly_returns.std() != 0 else 0
     downside = quarterly_returns[quarterly_returns < RF_QUARTERLY] - RF_QUARTERLY
     downside_std = np.sqrt((downside ** 2).mean()) if len(downside) > 0 else 0
     sortino = (excess.mean() / downside_std) * np.sqrt(4) if downside_std != 0 else 0
