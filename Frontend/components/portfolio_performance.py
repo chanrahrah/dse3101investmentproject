@@ -110,8 +110,14 @@ def portfolio_performance():
     quarter_end_dates = pd.to_datetime(portfolio_df["date"]).dt.date.tolist()
    
     filtered = [
-        (d, label, p, s)
-        for d, label, p, s in zip(quarter_end_dates, portfolio_dates, portfolio_values, spy_values)
+        (d, label, p, s, t)
+        for d, label, p, s, t in zip(
+            quarter_end_dates,
+            portfolio_dates,
+            portfolio_values,
+            spy_values,
+            portfolio_df["tickers"]
+        )
         if from_date <= d <= to_date
     ]
 
@@ -119,12 +125,12 @@ def portfolio_performance():
         st.warning("No data available for the selected date range")
         return
 
-    _, portfolio_dates, portfolio_values, spy_values = zip(*filtered)
-    #portfolio_dates = [str(x) for x in portfolio_dates]
+    _, portfolio_dates, portfolio_values, spy_values, tickers = zip(*filtered)
     portfolio_dates = pd.to_datetime(portfolio_dates)
     portfolio_dates = [d.strftime("%Y-%m-%d") for d in portfolio_dates]
     portfolio_values = list(portfolio_values)
     spy_values = list(spy_values)
+    tickers = list(tickers)
 
     if use_log_scale:
         portfolio_plot = log_returns(portfolio_values)
@@ -133,9 +139,18 @@ def portfolio_performance():
         portfolio_plot = portfolio_values
         spy_plot = spy_values
 
+    portfolio_series_data = []
+    for val in portfolio_plot:
+        point = {
+            "value": val,
+            "symbolSize": 8,
+        }
+        portfolio_series_data.append(point)
+
+
+    if not use_log_scale:
         chart_min = min(portfolio_plot)
         chart_max = max(portfolio_plot)
-
         if show_benchmark:
             chart_min = min(chart_min, min(spy_plot))
             chart_max = max(chart_max, max(spy_plot))
@@ -197,8 +212,8 @@ def portfolio_performance():
                 "yAxisIndex": 0,
                 "smooth": False,
                 "symbol": "circle",
-                "symbolSize": 8,
-                "data": portfolio_plot,
+                "symbolSize": 12,
+                "data": portfolio_series_data,
             }
         ]
 
@@ -220,8 +235,8 @@ def portfolio_performance():
                 "yAxisIndex": 0,
                 "smooth": False,
                 "symbol": "circle",
-                "symbolSize": 8,
-                "data": portfolio_plot,
+                "symbolSize": 12,
+                "data": portfolio_series_data,
             }
         ]
 
@@ -245,7 +260,36 @@ def portfolio_performance():
             "left": "center"
         },
         "tooltip": {
-            "trigger": "axis"
+            "trigger": "axis",
+            "formatter": JsCode(
+                f"""
+                function (params) {{
+                    const idx = params[0].dataIndex;
+                    const dates = {portfolio_dates};
+                    const tickers = {tickers};
+
+                    let lines = [];
+                    lines.push("Date: " + dates[idx]);
+
+                    for (let i = 0; i < params.length; i++) {{
+                        let p = params[i];
+                        let val = typeof p.value === "number"
+                            ? p.value.toLocaleString(undefined, {{ maximumFractionDigits: 2 }})
+                            : p.value;
+                        lines.push(p.marker + " " + p.seriesName + ": " + val);
+                    }}
+
+                    let t = tickers[idx];
+                    if (typeof t === "string") {{
+                        t = t.replace(/[\[\]'"]/g, "");
+                    }}
+
+                    lines.push("Top N Stocks: " + t);
+
+                    return lines.join("<br/>");
+                }}
+                """
+            )
         },
         "legend": {
             "data": legend_data,
@@ -285,11 +329,26 @@ def portfolio_performance():
         "series": series
     }
 
-    st_echarts(
+    result = st_echarts(
         chart_option,
         height="450px",
-        key=f"portfolio_chart_{use_log_scale}_{show_benchmark}"
+        key=f"portfolio_chart_{use_log_scale}_{show_benchmark}",
+        on_select="rerun",
+        selection_mode="points",
     )
+
+    #--- Update data based on selected point ---
+    selection = result.get("selection", {}) if result else {}
+    point_indices = selection.get("point_indices", [])
+
+    if point_indices:
+        idx = point_indices[0]
+        st.session_state["selected_chart_index"] = idx
+        st.session_state["selected_chart_date"] = portfolio_dates[idx]
+        st.session_state["selected_chart_tickers"] = tickers[idx]
+
+    if st.session_state.get("selected_chart_date"):
+        st.caption(f"Selected point: {st.session_state['selected_chart_date']}")
 
     starting_capital = portfolio_values[0]
     ending_capital = portfolio_values[-1]

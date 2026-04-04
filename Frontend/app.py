@@ -7,7 +7,6 @@ import streamlit as st
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR))
 
-from components.add_fees import add_fees
 from components.top_20 import top_20_table, render_stock_details
 from Backend.backtesting.batch_process_rank_stocks import main
 
@@ -18,7 +17,7 @@ except Exception as e:
     portfolio_performance = None
     portfolio_performance_import_error = e
 
-STOCK_SNAPSHOT_PATH = ROOT_DIR / "Frontend" / "temp" / "stock_snapshot.parquet"
+STOCK_SNAPSHOT_PATH = ROOT_DIR / "Datasets" / "final_files" / "stock_snapshot.parquet"
 
 stock_snapshot_df = None
 if STOCK_SNAPSHOT_PATH.exists():
@@ -90,8 +89,7 @@ if len(quarter_end_dates) < 2:
     st.error("Not enough available quarter dates found in backend data.")
     st.stop()
 
-c1, c2, c3, c4, c5, c6, c7 = st.columns([0.18, 0.16, 0.16, 0.16, 0.12, 0.12, 0.10])
-
+c1, c2, c3, c4, c5, c6 = st.columns([0.20, 0.18, 0.18, 0.18, 0.13, 0.13])
 with c1:
     initial_capital = st.number_input(
         "Initial Capital ($)",
@@ -102,7 +100,13 @@ with c1:
     )
 
 with c2:
-    cost_rate = add_fees()
+    cost_rate = st.number_input(
+        "Fees per dollar value of transaction ($)",
+        min_value=0.0,
+        value=0.0,
+        step=0.1,
+        key="fee_per_trade",
+    )
 
 with c3:
     start_date_options = quarter_end_dates[:-1]
@@ -141,46 +145,6 @@ with c6:
         index=0,
         key="topN_institutions",
     )
-
-date_diff_days = (to_date - from_date).days
-
-usable_max_lag = max(date_diff_days - 2, 0)
-
-if "lag" not in st.session_state:
-    st.session_state["lag"] = min(47, usable_max_lag)
-else:
-    st.session_state["lag"] = min(st.session_state["lag"], usable_max_lag)
-
-with c7:
-    lag = st.number_input(
-        "Lag",
-        min_value=0,
-        max_value=int(usable_max_lag),
-        step=1,
-        key="lag",
-        disabled=(usable_max_lag == 0),
-        help=(
-            f"Maximum usable lag for this date range is {usable_max_lag} days. "
-            "If you need a larger lag, widen the date range."
-        ),
-    )
-
-lag_invalid = False
-
-if date_diff_days <= 1:
-    st.error("Selected date range is too short. Please choose a later end quarter.")
-    lag_invalid = True
-elif usable_max_lag == 0:
-    st.warning("No lag is available for this date range. Please choose a wider date range.")
-    lag_invalid = True
-elif lag == usable_max_lag and usable_max_lag > 0:
-    st.warning(
-        f"You have reached the maximum usable lag of {usable_max_lag} days for this date range. "
-        "Choose a smaller lag or a wider date range if you want more flexibility."
-    )
-
-if lag_invalid:
-    st.stop()
 
 portfolio_df = None
 metrics_df = None
