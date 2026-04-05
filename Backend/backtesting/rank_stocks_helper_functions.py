@@ -202,46 +202,104 @@ def run_backtest(topN: pd.DataFrame,
                  start_date=None,
                  end_date=None) -> pd.DataFrame:
     """
-    Equal-weight quarterly rebalance back-test.
- 
+    Equal-weight quarterly rebalancing back-test with smart turnover minimisation.
+
+    Parameters
+    ----------
+    topN : pd.DataFrame
+        Output of rank_topN() + apply_filing_lag_and_get_trade_prices(). Must contain
+        columns: PERIODOFREPORT, trade_date, ticker.
+    prices : pd.DataFrame
+        Price data for all held tickers. Must contain columns:
+        date, ticker, adj_close, adj_open.
+    initial_capital : float
+        Starting portfolio value in dollars.
+    cost_rate : float, default 0.001
+        Transaction cost as a fraction of traded dollar value (0.001 = 0.1%).
+    start_date : str or None
+        If provided (YYYY-MM-DD), the backtest begins from this date. Any quarter
+        whose trade_date falls before start_date is dropped, except the straddling
+        quarter — its trade_date is snapped forward to the nearest available trading
+        day on or after start_date.
+    end_date : str or None
+        If provided (YYYY-MM-DD), a phantom quarter is inserted to cap the last
+        holding period. If end_date > last trade_date, the final quarter's holdings
+        are extended to end_date. If end_date < last trade_date, all quarters with
+        trade_date > end_date are dropped before the phantom is added.
+
     Mechanics
     ---------
-    * trade_date = PERIODOFREPORT + lag_days (snapped forward to next trading day).
-    * Each quarter's holding period: [trade_date[q], trade_date[q+1]).
-    * On trade_date[q] SMART rebalancing is executed at the adjusted OPEN price:
-        - exits   (dropped from top-N): sell all shares at open
-        - entries (new to top-N):       buy target_allocation / open_price shares
-        - stayers (in both quarters):    trade only the DELTA needed to restore
-                                         equal weight (price drift during the quarter
-                                         means their weights are no longer equal)
-        - This minimises turnover vs a full sell-and-rebuy every quarter.
-        - Final share counts are identical to a full rebuy, but fewer shares trade.
-    * Daily portfolio value uses ADJ_CLOSE for mark-to-market:
-        - portfolio_value[date] = sum(shares[ticker] * adj_close[ticker][date])
-        - adj_close is dividend/split-adjusted so returns are total return, not price return.
-    * portfolio_value carried into next quarter = adj_close mark-to-market on the
-      last trading day of the current holding period (day before next trade_date).
- 
-    Why open for execution, adj_close for valuation?
-    -------------------------------------------------
-    Open price reflects the realistic fill price when you place a market order at
-    the start of the day after you've decided to rebalance. adj_close is the standard
-    for performance measurement because it accounts for dividends and splits, giving
-    a true economic return. Mixing them correctly means: execution cost uses open,
-    ongoing P&L uses adj_close.
- 
+    Execution price — adj_open:
+        On each trade_date, all buys and sells are executed at the adjusted open
+        price. This reflects a realistic market-order fill placed at the start of
+        the trading day once the rebalance decision has been made.
+
+    Smart rebalancing (minimises turnover):
+        Rather than a full sell-and-rebuy each quarter, positions are categorised:
+          - Exits   (dropped from top-N): sold entirely at adj_open.
+          - Entries (new to top-N):       bought at adj_open to reach target weight.
+          - Stayers (in both quarters):   only the delta needed to restore equal
+                                          weight is traded (price drift during the
+                                          quarter shifts weights away from equal).
+        Final share counts are identical to a full rebuy, but total turnover — and
+        therefore transaction costs — are lower.
+
+    Transaction costs:
+        cost = cost_rate * sum(|target_value - current_value|) for all tickers.
+        The cost is deducted from portfolio_value before target allocations are
+        computed, so the remaining capital is divided equally across the new top-N.
+
+    Valuation — adj_close:
+        Between rebalance dates the portfolio is marked to market daily using
+        adjusted close prices (dividend- and split-adjusted), giving a true
+        total-return series rather than a price-return series.
+        portfolio_value[date] = sum(shares[ticker] * adj_close[ticker][date])
+        The portfolio value carried into the next quarter is the adj_close
+        mark-to-market on the last trading day of the current holding period
+        (i.e. the day before the next trade_date).
+
+    Holding periods:
+        quarter[i] holding period = [trade_date[i], trade_date[i+1])
+        The last holding period is bounded by the phantom quarter's trade_date.
+
     Returns
     -------
-    DataFrame with columns:
-        date             -- daily price observation dates
-        quarter          -- PERIODOFREPORT the row belongs to
-        trade_date       -- the actual date we execute the trade and the rebalance for that quarter (PERIODOFREPORT + lag, snapped forward)
-        holding_period   -- period we hold the stocks for that quarter (e.g. "2020-02-15 to 2020-05-14")
-        tickers          -- list of top-10 tickers held in that quarter
-        portfolio_value  -- end-of-day mark-to-market value (shares * adj_close)
-        daily_return     -- pct change vs previous trading day (NaN on first row)
-        cum_return       -- cumulative return from inception
-        quarter_return   -- total return for that quarter (repeated for every day in quarter)
+    pd.DataFrame
+        One row per trading day. Columns:
+
+        date              (date)   Daily price observation date.
+        quarter           (date)   PERIODOFREPORT this row belongs to.
+        trade_date        (date)   Date the rebalance was executed for this quarter
+                                   (= earliest FILING_DATE across institutions + lag,
+                                   snapped to next trading day).
+        holding_period    (str)    Human-readable holding window, e.g.
+                                   "2020-02-15 to 2020-05-14".
+        tickers           (list)   Top-N tickers held during this quarter.
+        portfolio_value   (float)  End-of-day mark-to-market value (shares * adj_close).
+        daily_return      (float)  Percentage change vs the previous trading day.
+                                   Set to 0.0 on the first row.
+        cum_return        (float)  Cumulative return from inception
+                                   = (portfolio_value / first_portfolio_value) - 1.
+        quarter_return    (float)  Total return for the quarter
+                                   = (last adj_close value / portfolio_value on trade_date) - 1.
+                                   Repeated for every day within the quarter.
+        turnover          (float)  Total dollar value of shares traded on trade_date
+                                   (sum of absolute position changes). Repeated per quarter.
+        transaction_cost  (float)  Dollar cost charged on trade_date = cost_rate * turnover.
+                                   Repeated per quarter.
+        cost_drag         (float)  Transaction cost as a fraction of pre-cost portfolio value
+                                   = transaction_cost / portfolio_value_before_cost.
+                                   Repeated per quarter.
+
+    Raises
+    ------
+    ValueError
+        If fewer than 2 quarters are found after date filtering (need at least one
+        full holding period).
+    ValueError
+        If no trading days exist on or after start_date.
+    ValueError
+        If portfolio value is fully wiped out by transaction costs.
     """
  
     # ---- normalise date types to Python date for consistent comparisons ----
