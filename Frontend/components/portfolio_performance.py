@@ -8,15 +8,15 @@ import pandas as pd
 from Backend.backtesting.batch_process_rank_stocks import main
 import numpy as np
 
+#---------- Function to load data from backend ----------
 @st.cache_data
-def load_frontend_data(start_date,end_date,initial_capital,topN_stocks,topN_institutions,lag,cost_rate,):
+def load_frontend_data(start_date, end_date, initial_capital, topN_stocks, topM_institutions, cost_rate):
     portfolio_df, metrics_df = main(
         userinput_start_date=str(start_date),
         userinput_end_date=str(end_date),
         userinput_initial_capital=initial_capital,
+        userinput_topM_institutions=topM_institutions,
         userinput_topN_stocks=topN_stocks,
-        userinput_topN_institutions=topN_institutions,
-        userinput_lag=lag,
         userinput_cost_rate=cost_rate,
     )
     return portfolio_df, metrics_df
@@ -30,7 +30,6 @@ def metric_bg(value):
     if value < 0:
         return "#c63d2f"   # red
     return "#3b3f4a"
-
 
 def format_metric(value, kind="number"):
     if value is None:
@@ -70,10 +69,12 @@ def log_returns(series):
     for i in range(1, len(series)):
         returns.append(math.log(series[i] / series[i - 1]))
     return returns
-    
+
+
 RF_ANNUAL = 0.0375
 RF_QUARTERLY = RF_ANNUAL / 4
-# Placeholder for now
+
+#--------- Main function to render portfolio performance chart and metrics ----------
 def portfolio_performance():
     chart_c1, chart_c2, _ = st.columns([1, 1, 4])
     with chart_c1:
@@ -85,7 +86,6 @@ def portfolio_performance():
     to_date = st.session_state.get("to_date", None)
     initial_capital = st.session_state.get("initial_capital", 10000)
     cost_rate = st.session_state.get("fee_per_trade", 0.001)
-    lag = st.session_state.get("lag", 47)
     topN_stocks = st.session_state.get("topN_stocks", 10)
     topN_institutions = st.session_state.get("topN_institutions", 10)
 
@@ -94,11 +94,9 @@ def portfolio_performance():
         end_date=to_date,
         initial_capital=initial_capital,
         topN_stocks=topN_stocks,
-        topN_institutions=topN_institutions,
-        lag=lag,
+        topM_institutions=topN_institutions,
         cost_rate=cost_rate,
     )
-    #portfolio_dates = portfolio_df["quarter"].tolist()
     portfolio_dates = pd.to_datetime(portfolio_df["date"])
     portfolio_values = portfolio_df["portfolio_value"].tolist()
     #spy_values = portfolio_df["spy_value"].tolist()
@@ -143,7 +141,7 @@ def portfolio_performance():
     for val in portfolio_plot:
         point = {
             "value": val,
-            "symbolSize": 8,
+            "symbolSize": 16,
         }
         portfolio_series_data.append(point)
 
@@ -235,7 +233,7 @@ def portfolio_performance():
                 "yAxisIndex": 0,
                 "smooth": False,
                 "symbol": "circle",
-                "symbolSize": 12,
+                "symbolSize": 16,
                 "data": portfolio_series_data,
             }
         ]
