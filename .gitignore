@@ -10,6 +10,9 @@ __pycache__/
 # Ignore all files in Datasets
 Datasets/**
 Datasets/.kaggle_version
+# but keep the empty folders
+!Datasets/**/
+!Datasets/**/.gitkeep
 
 # But keep parquet files in Datasets/final_files
 # !Datasets/
