@@ -339,23 +339,35 @@ def portfolio_performance(portfolio_df, metrics_df):
         "series": series
     }
 
+    if "selected_chart_index" not in st.session_state:
+        st.session_state["selected_chart_index"] = None
+    if "selected_chart_date" not in st.session_state:
+        st.session_state["selected_chart_date"] = None
+    if "selected_chart_tickers" not in st.session_state:
+        st.session_state["selected_chart_tickers"] = None
+
     result = st_echarts(
         chart_option,
         height="450px",
-        key=f"portfolio_chart_{use_log_scale}_{show_benchmark}",
+        key="portfolio_chart",
         on_select="rerun",
         selection_mode="points",
     )
 
-    #--- Update data based on selected point ---
-    selection = result.get("selection", {}) if result else {}
-    point_indices = selection.get("point_indices", [])
+    if result and isinstance(result, dict):
+        selection = result.get("selection", {})
+        point_indices = selection.get("point_indices", [])
 
-    if point_indices:
-        idx = point_indices[0]
-        st.session_state["selected_chart_index"] = idx
-        st.session_state["selected_chart_date"] = portfolio_dates[idx]
-        st.session_state["selected_chart_tickers"] = tickers[idx]
+        if point_indices:
+            idx = point_indices[0]
+            if 0 <= idx < len(portfolio_dates):
+                st.session_state["selected_chart_index"] = idx
+                st.session_state["selected_chart_date"] = portfolio_dates[idx]
+                st.session_state["selected_chart_tickers"] = tickers[idx]
 
     if st.session_state.get("selected_chart_date"):
         st.caption(f"Selected point: {st.session_state['selected_chart_date']}")
+
+    # DEBUG
+    #st.write("Stored index:", st.session_state.get("selected_chart_index"))
+    #st.write("Stored tickers:", st.session_state.get("selected_chart_tickers"))
