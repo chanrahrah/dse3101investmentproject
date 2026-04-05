@@ -11,6 +11,7 @@ from components.top_20 import top_20_table, render_stock_details
 from Backend.backtesting.batch_process_rank_stocks import main
 from components.daily_returns import daily_returns
 from components.cummulative_returns import cummulative_returns
+from components.performance_metrics import performance_metrics
 
 try:
     from components.portfolio_performance import portfolio_performance
@@ -171,8 +172,8 @@ with col_left:
     #st.header("Portfolio Performance")
     a, b, c = st.tabs(["Portfolio Performance", "Daily Returns", "Cummulative Returns"])
     with a:  
-        if portfolio_performance is not None:
-            portfolio_performance()
+        if portfolio_df is not None:
+            portfolio_performance(portfolio_df, metrics_df)
         else:
             st.warning("Portfolio Performance component could not be loaded.")
             st.caption(str(portfolio_performance_import_error))
@@ -186,6 +187,8 @@ with col_left:
             cummulative_returns(portfolio_df)
         else:
             st.info("No portfolio data available yet.")
+    st.markdown("---")
+    performance_metrics(portfolio_df, metrics_df)
 
 with col_right:
     st.header("Top Stocks by Institutional Holdings")
