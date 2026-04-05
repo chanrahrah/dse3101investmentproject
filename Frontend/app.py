@@ -166,12 +166,18 @@ col_left, col_right = st.columns([3, 1])
 selected_tickers = None
 
 with col_left:
-    st.header("Portfolio Performance")
-    if portfolio_performance is not None:
-        portfolio_performance()
-    else:
-        st.warning("Portfolio Performance component could not be loaded.")
-        st.caption(str(portfolio_performance_import_error))
+    #st.header("Portfolio Performance")
+    a, b, c = st.tabs(["Portfolio Performance", "Daily Returns", "Cummulative Returns"])
+    with a:  
+        if portfolio_performance is not None:
+            portfolio_performance()
+        else:
+            st.warning("Portfolio Performance component could not be loaded.")
+            st.caption(str(portfolio_performance_import_error))
+    with b: 
+        st.write("insert graph here")
+    with c: 
+        st.write("insert graph here")
 
 with col_right:
     st.header("Top Stocks by Institutional Holdings")
