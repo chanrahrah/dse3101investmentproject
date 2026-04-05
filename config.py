@@ -57,7 +57,7 @@ TICKER_SOURCE_PATH = MAPPER_DIR / "cusip_ticker_map.parquet"
 # PATHS for transform SPY stock price files
 # ==========================================================
 SPY_DS_ROOT = DATA_DIR / "SPY_price_data"
-SPY_DATA_DIR = SPY_DS_ROOT / "spy_prices_2013-01-01_to_2026-03-31.parquet"
+SPY_DATA_DIR = DATA_DIR / "final_files" / "spy_prices_2013-01-01_to_2026-03-31.parquet"
 RUN_META_PATH_SPY = SPY_DS_ROOT / "_run_meta.csv"
 
 # ==========================================================

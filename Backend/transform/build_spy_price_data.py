@@ -16,11 +16,11 @@ import yfinance as yf
 # ==========================================================
 from config import (
     SPY_DS_ROOT,
-    SPY_OUTPUT_PATH,
+    FINAL_FILES_FOLDER,
     RUN_META_PATH_SPY
 )
 
-OUTPUT_PATH = SPY_OUTPUT_PATH
+OUTPUT_PATH = FINAL_FILES_FOLDER / "spy_prices.parquet"
 RUN_META_PATH = RUN_META_PATH_SPY
 
 # ---------------------------
