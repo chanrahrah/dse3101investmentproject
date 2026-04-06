@@ -42,20 +42,20 @@ def render_metric(label, value, kind="number", spy_value=None):
 
     st.markdown(
         f"""
-        <div style="background:{bg}; border-radius:14px; padding:14px; height:105px; color:white;">
-        <div style="font-size:16px; font-weight:400; margin-bottom:8px;">{label}</div>
+        <div style="background:{bg}; border-radius:14px; padding:14px; height:110px; color:white;">
+        <div style="font-size:16px; font-weight:500; margin-bottom:4px;">{label}</div>
         <div style="display:flex; justify-content:space-between; align-items:center;">
         <div>
-                <div style="font-size:10px; opacity:0.8;">Portfolio</div>
-                <div style="font-size:20px;">{display_main}
-                    <span style="color:{arrow_color}; margin-left:6px;">{arrow}
+                <div style="font-size:12px; opacity:0.8;">Portfolio</div>
+                <div style="font-size:28px;">{display_main}
+                    <span style="font-size:25px; color:{arrow_color};">{arrow}
                     </span>
                     </div></div>
-                <div style="opacity:0.9; padding-top: 20px">|
+                <div style="opacity:0.8; padding-top: 20px">|
                 </div>
                 <div style="text-align:right;">
-                <div style="font-size:10px; opacity:0.8;">SPY</div>
-                <div style="font-size:20px; opacity:1;">
+                <div style="font-size:12px; opacity:0.8;">SPY</div>
+                <div style="font-size:28px;">
                     {display_spy}
                 </div></div></div></div>
     """, 
@@ -75,8 +75,9 @@ def count_quarters(portfolio_df):
 def compute_metrics(values, portfolio_df):
     if values is None or len(values) < 2:
         return None
-
-    starting = values[0]
+    
+    starting = st.session_state.get("initial_capital") - st.session_state.get("fee_per_trade") * st.session_state.get("initial_capital")
+    
     ending = values[-1]
 
     number_of_quarters = count_quarters(portfolio_df)
@@ -130,10 +131,7 @@ def performance_metrics(portfolio_df, metrics_df=None):
 
     # ---- values ----
     portfolio_values = portfolio_df["portfolio_value"].tolist()
-    if "spy_value" in portfolio_df.columns:
-        spy_values = portfolio_df["spy_value"].tolist()
-    else:
-        spy_values = portfolio_values.copy()
+    spy_values = portfolio_df["spy_value"].tolist()
 
     # ---- Compute metrics ----
     portfolio_metrics = compute_metrics(portfolio_values, portfolio_df)

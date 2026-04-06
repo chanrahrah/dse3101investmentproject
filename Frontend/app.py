@@ -140,6 +140,7 @@ with c6:
         index=0,
         key="topN_institutions",)
 
+# load dfs
 portfolio_df = None
 metrics_df = None
 
@@ -149,7 +150,8 @@ try:
             userinput_start_date=from_date.strftime("%Y-%m-%d"),
             userinput_end_date=to_date.strftime("%Y-%m-%d"),
             userinput_initial_capital=float(initial_capital),
-            userinput_topN_stocks=int(topN),)
+            userinput_topN_stocks=int(topN),
+            userinput_cost_rate=float(cost_rate),)
 
         if portfolio_df is not None and spy_df is not None:
             portfolio_df = portfolio_df.copy()
@@ -174,9 +176,11 @@ try:
 except Exception as e:
     st.error(f"Error running backend: {e}")
 
+# configure layout of sections
 col_left, col_right = st.columns([7.7, 2.3])
 selected_tickers = None
 
+# left panel 
 with col_left:
     tab1, tab2, tab3 = st.tabs(["Portfolio Performance", "Daily Returns", "Cumulative Returns"])
 
@@ -203,6 +207,7 @@ with col_left:
     st.header("Performance Metrics")
     performance_metrics(portfolio_df, metrics_df)
 
+# right panel 
 with col_right:
     if portfolio_df is not None:
         selected_tickers = top_20_table(
@@ -213,6 +218,7 @@ with col_right:
     else:
         st.info("No holdings data yet.")
 
+# bottom section
 st.markdown("---")
 st.header("Stock Details")
 render_stock_details(selected_tickers, stock_snapshot_df)

@@ -80,4 +80,4 @@ def daily_returns(portfolio_df: pd.DataFrame):
         }]
     }
 
-    st_echarts(chart_option, height="450px", key="daily_returns_chart")
+    st_echarts(chart_option, height="500px", key="daily_returns_chart")
