@@ -174,7 +174,7 @@ try:
 except Exception as e:
     st.error(f"Error running backend: {e}")
 
-col_left, col_right = st.columns([3, 1])
+col_left, col_right = st.columns([7.7, 2.3])
 selected_tickers = None
 
 with col_left:
@@ -182,7 +182,7 @@ with col_left:
 
     with tab1:
         if portfolio_df is not None:
-            portfolio_performance(portfolio_df, metrics_df)
+            portfolio_performance(portfolio_df)
         else:
             st.warning("Portfolio Performance component could not be loaded.")
             st.caption(str(portfolio_performance_import_error))
@@ -200,6 +200,7 @@ with col_left:
             st.info("No portfolio data available yet.")
 
     st.markdown("---")
+    st.header("Performance Metrics")
     performance_metrics(portfolio_df, metrics_df)
 
 with col_right:

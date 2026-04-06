@@ -21,5 +21,5 @@ baseFontSize = 15
 
 # Heading text
 headingFont = "Space Grotesk"
-headingFontWeights = [300, 400, 400, 300, 300, 300]
+headingFontWeights = [600, 500, 300, 300, 300, 300]
 headingFontSizes = ["2.5rem", "1.5rem", "1rem"]

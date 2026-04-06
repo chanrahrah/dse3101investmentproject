@@ -54,11 +54,11 @@ def log_returns(series):
     return returns
 
 #--------- Main function to render portfolio performance chart and metrics ----------
-def portfolio_performance(portfolio_df, metrics_df):
-    chart_c1, chart_c2, _ = st.columns([1, 1, 4])
-    with chart_c1:
-        use_log_scale = st.checkbox("Log scale", value=False)
+def portfolio_performance(portfolio_df):
+    chart_c1, chart_c2, chart_c3, chart_c4 = st.columns([4, 1, 1, 4])
     with chart_c2:
+        use_log_scale = st.checkbox("Log scale", value=False)
+    with chart_c3:
         show_benchmark = st.checkbox("Show SPY", value=True)
 
     from_date = st.session_state.get("from_date", None)
@@ -72,7 +72,7 @@ def portfolio_performance(portfolio_df, metrics_df):
         spy_values = portfolio_values.copy()
     
     if from_date is None or to_date is None:
-        st.warning("Please select date range")
+        st.warning("Please select date range.")
         return
     quarter_end_dates = pd.to_datetime(portfolio_df["date"]).dt.date.tolist()
    
@@ -296,7 +296,8 @@ def portfolio_performance(portfolio_df, metrics_df):
 
     result = st_echarts(
         chart_option,
-        height="450px",
+        height="500px",
+        width="100%",
         key="portfolio_chart",
         on_select="rerun",
         selection_mode="points",

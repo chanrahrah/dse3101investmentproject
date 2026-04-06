@@ -196,7 +196,8 @@ def top_20_table(portfolio_df, top_n=10, top_m_institutions=10, fee_per_dollar=N
 
     tickers = tickers[:top_n]
 
-    st.markdown(f"### Top {top_n} Stocks based on Top {top_m_institutions} Institution Holdings")
+    st.subheader(f"Top {top_n} Stocks based on Top {top_m_institutions} Institution Holdings", 
+                 help = "Click on any data point in the Portfolio Performance chart to see the top stocks for that quarter.")
     st.caption(f"Selected quarter: {selected_date_display}")
     st.caption(f"Fees per dollar value of transaction ($): {fee_per_dollar}")
 
