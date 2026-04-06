@@ -105,8 +105,14 @@ with c2:
         format="%.3f",
         key="fee_per_trade",)
 
+MIN_START_DATE = date(2013, 8, 16)
+MAX_END_DATE = date(2026, 3, 31)
+
+MIN_START_DATE = date(2013, 8, 16)
+
 with c3:
-    start_date_options = quarter_end_dates[:-2]
+    start_date_options = [MIN_START_DATE] + quarter_end_dates[:-2]
+
     from_date = st.selectbox(
         "From:",
         options=start_date_options,
@@ -115,8 +121,19 @@ with c3:
         key="from_date",)
 
 with c4:
-    from_idx = quarter_end_dates.index(from_date)
-    valid_to_dates = quarter_end_dates[from_idx + 2:]
+    if from_date in quarter_end_dates:
+        from_idx = quarter_end_dates.index(from_date)
+        valid_to_dates = quarter_end_dates[from_idx + 2:]
+    else:
+        valid_to_dates = quarter_end_dates[2:]
+
+    # ensure max is always included
+    MAX_END_DATE = date(2026, 3, 31)
+    if MAX_END_DATE not in valid_to_dates:
+        valid_to_dates.append(MAX_END_DATE)
+
+    valid_to_dates = sorted(valid_to_dates)
+
     to_date = st.selectbox(
         "To:",
         options=valid_to_dates,
