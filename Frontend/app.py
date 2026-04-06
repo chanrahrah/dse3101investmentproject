@@ -32,7 +32,7 @@ SPY_PATH = ROOT_DIR / "Datasets" / "final_files" / "spy_prices_2013-01-01_to_202
 stock_snapshot_df = pd.read_parquet(STOCK_SNAPSHOT_PATH) if STOCK_SNAPSHOT_PATH.exists() else None
 spy_df = pd.read_parquet(SPY_PATH) if SPY_PATH.exists() else None
 
-
+# helper functions 
 def get_available_quarter_dates():
     possible_files = [
         ROOT_DIR / "Datasets" / "final_files" / "final_top10_form13f.parquet",
@@ -72,7 +72,7 @@ def get_available_quarter_dates():
     quarter_dates = sorted(quarter_dates)
     return quarter_dates
 
-
+# page configurations 
 st.set_page_config(page_title="dse3101 project", layout="wide")
 st.title("Dashboard")
 
