@@ -152,7 +152,6 @@ with col_left:
             portfolio_performance(portfolio_df)
         else:
             st.warning("Portfolio Performance component could not be loaded.")
-            st.caption(str(portfolio_performance_import_error))
 
     with tab2:
         if portfolio_df is not None:
