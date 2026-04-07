@@ -52,6 +52,33 @@ def get_final_files(top_n_institutions: list[str], form13f_folder_path: Path, pr
     filter_prices_for_top_institutions(top_n_institutions, prices_file_path, holdings_file, output_folder)
     logger.info("[INFO] Filtering DONE.")
 
+def get_all_final_files():
+    if DEBUG:
+        return
+    
+    # Only perform steps if in production mode. In debug mode, we skip the batch process and directly 
+    # use the existing final files in Datasets/final_files/ for frontend development (to save time and avoid unnecessary API calls during development).
+    # The master list of institutions (Top 30)
+    MASTER_INSTITUTIONS = [
+        '0000914976','0001767601','0001482935','0001697233','0000872259','0001536446','0001017115','0001641447','0001727993','0001502149', # 1-10
+        '0001308685','0001641643','0001080369','0001455251','0001767898','0001082339','0001004244','0001698777','0001592746','0001510434', # 11-20
+        '0001667134','0001120048','0001600999','0001020580','0001764387','0001747799','0001512026','0001054646','0000866590','0001033225'  # 21-30
+    ]
+
+    # Iterate through the desired sizes (10, 20, 30)
+    for n in [10, 20, 30]:
+        logger.info(f"[PROCESS] Processing top {n} institutions...")
+        
+        # Slice the list to get the top N
+        top_n = MASTER_INSTITUTIONS[:n]
+        
+        get_final_files(
+            top_n, 
+            FORM13F_FOLDER_PATH, 
+            PRICES_FILE_FULL, 
+            FINAL_FILES_FOLDER
+        )
+
 # ===========================================================
 # 2. Run strategy
 # ===========================================================
@@ -195,11 +222,11 @@ if __name__ == "__main__":
         get_final_files(TOP_30_INSTITUTIONS, FORM13F_FOLDER_PATH, PRICES_FILE_FULL, FINAL_FILES_FOLDER)
 
     # Change user inputs here:
-    userinput_start_date = '2015-04-01' 
-    userinput_end_date = '2025-11-20'
+    userinput_start_date = '2013-08-16' 
+    userinput_end_date = '2026-03-31'
     userinput_initial_capital = 10_000
-    userinput_topM_institutions= 20 # default at 10. User can choose between 10,20,30 top institutions.
-    userinput_topN = 18 # default at 10. User can choose any topN stocks to hold per quarter.
+    userinput_topM_institutions= 10 # default at 10. User can choose between 10,20,30 top institutions.
+    userinput_topN = 10 # default at 10. User can choose any topN stocks to hold per quarter.
     userinput_cost_rate = 0.001  # default at 0.001. transaction cost as a fraction of traded dollar value (default 0.001 = 0.1%)
 
     portfolio_df, full_df = main(userinput_start_date, 

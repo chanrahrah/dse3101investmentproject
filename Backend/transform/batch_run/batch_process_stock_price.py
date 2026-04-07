@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 def main():
-    if DEBUG: # Only run the batch process in production mode
+    if not DEBUG: # Only run the batch process in production mode
         start_time = time.time()
         logger.info("Starting batch process for stock price data...")
         # Step 1: Process raw stock price files and save to PRICES_DS_ROOT
@@ -29,5 +29,6 @@ def main():
         elapsed_time = end_time - start_time
         logger.info(f"Batch process completed in {elapsed_time:.2f} seconds.")
 
+# test
 if __name__ == "__main__":
     main()

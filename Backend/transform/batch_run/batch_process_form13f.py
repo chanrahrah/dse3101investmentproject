@@ -41,7 +41,7 @@ def main():
     download_data_from_kaggle()
 
     if not DEBUG:
-        # Perform all the steps in production mode. 
+        # Only perform all the steps in production mode. 
 
         # Step 1: Clean zip files and convert to parquet files
         logger.info("=== Step 1: Unzip raw form13f files and convert to clean parquet files ===")

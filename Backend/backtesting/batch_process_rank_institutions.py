@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 import re
-from config import SCREENED_DIR, PRICES_FILE_FULL, BEST_INSTITUTION_RANKING_DIR
+from config import DEBUG, SCREENED_DIR, PRICES_FILE_FULL, BEST_INSTITUTION_RANKING_DIR
 
 # =========================================================
 # CONFIG
@@ -618,6 +618,8 @@ def run_backtest(
 
 
 def main() -> None:
+    if DEBUG:
+        return
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("[1/5] Reading and combining all 13F parquet files ...")
