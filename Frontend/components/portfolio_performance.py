@@ -45,14 +45,15 @@ def portfolio_performance(portfolio_df: pd.DataFrame):
     quarter_end_dates = pd.to_datetime(portfolio_df["date"]).dt.date.tolist()
    
     filtered = [
-        (d, label, p, s, t, hp)
-        for d, label, p, s, t, hp in zip(
+        (d, label, p, s, t, hp,td)
+        for d, label, p, s, t, hp, td in zip(
             quarter_end_dates,
             portfolio_dates,
             portfolio_values,
             spy_values,
             portfolio_df["tickers"],
-            portfolio_df["holding_period"]
+            portfolio_df["holding_period"],
+            portfolio_df["trade_date"]
         )
         if from_date <= d <= to_date
     ]
@@ -65,15 +66,19 @@ def portfolio_performance(portfolio_df: pd.DataFrame):
         st.warning("No data available for the selected date range")
         return
 
-    _, portfolio_dates, portfolio_values, spy_values, tickers, holding_periods = zip(*filtered)
+    _, portfolio_dates, portfolio_values, spy_values, tickers, holding_periods, trade_dates = zip(*filtered)
     portfolio_dates = pd.to_datetime(portfolio_dates)
     portfolio_dates = [d.strftime("%Y-%m-%d") for d in portfolio_dates]
     portfolio_values = list(portfolio_values)
     spy_values = list(spy_values)
     tickers = list(tickers)
     holding_periods = list(holding_periods)
+    trade_dates = list(trade_dates)
 
     portfolio_dates_dt = pd.to_datetime(portfolio_dates)
+
+    trade_dates_dt = pd.to_datetime(trade_dates, errors="coerce")
+    show_trade = (portfolio_dates_dt == trade_dates_dt).tolist()
 
     show_label = [False] * len(portfolio_dates_dt)
 
@@ -103,7 +108,7 @@ def portfolio_performance(portfolio_df: pd.DataFrame):
         spy_plot = spy_values
 
     portfolio_series_data = []
-    for val, show in zip(portfolio_plot, show_label):
+    for val, show in zip(portfolio_plot, show_trade):
         point = {
             "value": val,
             "symbolSize": 10 if show else 0,
