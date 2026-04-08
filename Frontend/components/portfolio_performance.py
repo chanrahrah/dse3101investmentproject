@@ -15,8 +15,12 @@ import json
 def count_quarters(portfolio_df):
     return portfolio_df["quarter"].nunique()
 
-import numpy as np
-log_returns = np.log(series / series[0])
+def log_returns(series):
+    returns = [0]
+    for i in range(1, len(series)):
+        log_ret = math.log(series[i] / series[i - 1])
+        returns.append(returns[-1] + log_ret)  # cumulative sum
+    return returns
 
 #--------- Main function to render portfolio performance chart and metrics ----------
 def portfolio_performance(portfolio_df: pd.DataFrame):

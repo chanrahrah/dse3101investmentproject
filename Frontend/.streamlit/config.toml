@@ -1,5 +1,5 @@
 [theme]
-base = "dark"
+# base = "dark"
 
 # General color setup
 textColor = "#e2e8f0"

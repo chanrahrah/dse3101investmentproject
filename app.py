@@ -11,15 +11,15 @@ import sys
 import pandas as pd
 import streamlit as st
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT_DIR))
 
 from Backend.backtesting.batch_process_rank_stocks import main
-from components.cumulative_returns import cumulative_returns
-from components.daily_returns import daily_returns
-from components.performance_metrics import performance_metrics
-from components.top_20 import render_stock_details, top_20_table
-from components.portfolio_performance import portfolio_performance
+from Frontend.components.cumulative_returns import cumulative_returns
+from Frontend.components.daily_returns import daily_returns
+from Frontend.components.performance_metrics import performance_metrics
+from Frontend.components.top_20 import render_stock_details, top_20_table
+from Frontend.components.portfolio_performance import portfolio_performance
 
 
 STOCK_SNAPSHOT_PATH = ROOT_DIR / "Datasets" / "final_files" / "stock_snapshot.parquet"

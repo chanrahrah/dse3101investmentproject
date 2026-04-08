@@ -1,5 +1,9 @@
 # DSE3101 Investment Project
 
+Access our dashboard here: https://dse3101investmentproject.streamlit.app/
+
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://dse3101investmentproject.streamlit.app)
+
 ## Prerequisites
 
 - Python 3.x
@@ -128,6 +132,7 @@ dse3101investmentproject/
 ├── .gitignore
 ├── README.md
 ├── config.py                    ← all paths and env variables
+├── app.py                       ← main app to configure Streamlit
 ├── Datasets/
 │   ├── 13F_zip_files/
 │   ├── 13F_clean_files/
