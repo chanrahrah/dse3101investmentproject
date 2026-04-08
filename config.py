@@ -24,6 +24,11 @@ DATASET          = "tayyihong/dse3101-ver-22-mar"
 KAGGLE_SUBFOLDER = "13F_zip_files"                # subfolder name on Kaggle
 
 # ==========================================================
+# KAGGLE — 13F ZIP FILES ONLY DATASET (DEBUG=False / Production)
+# ==========================================================
+DATASET_13F_ZIP  = "chanrahrah/13f-zip-files"  
+
+# ==========================================================
 # ROOT & DATA DIRECTORIES
 # ==========================================================
 PROJECT_ROOT = Path(__file__).resolve().parents[0]  # dse3101investmentproject
