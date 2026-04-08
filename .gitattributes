@@ -1,3 +1,2 @@
 # only track and upload the parquet files in Datasets/final_files with git lfs
-# remove for the time being. git lfs is being used up too quickly.
-# Datasets/final_files/*.parquet filter=lfs diff=lfs merge=lfs -text
+Datasets/final_files/*.parquet filter=lfs diff=lfs merge=lfs -text
