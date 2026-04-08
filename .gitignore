@@ -7,17 +7,22 @@ temp
 *.pyc
 __pycache__/
 
-# Ignore all files in Datasets
-Datasets/**
-Datasets/.kaggle_version
-# but keep the empty folders
-!Datasets/**/
-!Datasets/**/.gitkeep
+# Ignore everything in Datasets
+Datasets/*
 
-# But keep parquet files in Datasets/final_files
-# !Datasets/
-# !Datasets/final_files/
-# !Datasets/final_files/*.parquet
+# Keep folder structure
+!Datasets/
+!Datasets/**/
+
+# Ignore everything again inside
+Datasets/**
+
+# Allow final_files folder
+!Datasets/final_files/
+!Datasets/final_files/*.parquet
+
+# Keep gitkeep if needed
+!Datasets/**/.gitkeep
 
 # Ignore .env (contains api keys)
 .env
