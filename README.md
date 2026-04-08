@@ -77,7 +77,18 @@ python -m Backend.batch_run_all_backend
 ```
 
 ## Frontend app deployment on local host
-NOTE: Can frontend put how to deploy app locally here and edit project structure if needed
+To deploy the dashboard on a local host, run:
+
+```bash
+streamlit run Frontend/app.py
+```
+
+Alternatively, set your working directory to `Frontend` and run: 
+
+```bash
+streamlit run app.py
+```
+
 **User Input Parameters:**
 
 | Parameter                   | Default        | Description                                              |
