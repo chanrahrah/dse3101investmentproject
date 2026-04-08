@@ -70,62 +70,68 @@ def sanitise(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-# --- Fetch loop ---
-records = []
-saved_df = pd.DataFrame(columns=COLUMN_ORDER)  # accumulates all saved batches
+def main():
+    """Fetch ticker snapshots and save to parquet."""
+    # --- Fetch loop ---
+    records = []
+    saved_df = pd.DataFrame(columns=COLUMN_ORDER)  # accumulates all saved batches
 
-for i, ticker in enumerate(all_tickers, 1):
-    print(f"[{i}/{len(all_tickers)}] Fetching {ticker}...")
+    for i, ticker in enumerate(all_tickers, 1):
+        print(f"[{i}/{len(all_tickers)}] Fetching {ticker}...")
 
-    try:
-        tkr = yf.Ticker(ticker)
-        hist = tkr.history(period="1d")
+        try:
+            tkr = yf.Ticker(ticker)
+            hist = tkr.history(period="1d")
 
-        if hist.empty:
-            print(f"  ⚠ No price history for {ticker}, skipping.")
+            if hist.empty:
+                print(f"  ⚠ No price history for {ticker}, skipping.")
+                continue
+
+            latest = hist.iloc[-1]
+            info = tkr.info
+
+            row = {
+                "ticker":    ticker,
+                "adj_close": latest.get("Close"),
+                "volume":    latest.get("Volume"),
+                "open":      latest.get("Open"),
+                "high":      latest.get("High"),
+                "low":       latest.get("Low"),
+                "close":     latest.get("Close"),
+                "year":      datetime.today().year,
+            }
+            for col, key in INFO_FIELDS.items():
+                row[col] = info.get(key)
+
+            records.append(row)
+
+        except Exception as e:
+            print(f"  ✗ Error on {ticker}: {e}")
             continue
 
-        latest = hist.iloc[-1]
-        info = tkr.info
+        time.sleep(SLEEP_PER_TICKER)
 
-        row = {
-            "ticker":    ticker,
-            "adj_close": latest.get("Close"),
-            "volume":    latest.get("Volume"),
-            "open":      latest.get("Open"),
-            "high":      latest.get("High"),
-            "low":       latest.get("Low"),
-            "close":     latest.get("Close"),
-            "year":      datetime.today().year,
-        }
-        for col, key in INFO_FIELDS.items():
-            row[col] = info.get(key)
+        # Batch save
+        if i % BATCH_SIZE == 0:
+            print(f"\n  💾 Saving batch at ticker {i}...")
+            batch_df = sanitise(pd.DataFrame(records, columns=COLUMN_ORDER))
+            saved_df = pd.concat([saved_df, batch_df], ignore_index=True)
+            saved_df = sanitise(saved_df)
+            saved_df.to_parquet(OUTPUT_PATH, index=False)
+            print(f"  ✅ Snapshot now has {len(saved_df)} rows.\n")
+            records = []  # clear buffer after saving
+            time.sleep(SLEEP_AFTER_BATCH)
 
-        records.append(row)
-
-    except Exception as e:
-        print(f"  ✗ Error on {ticker}: {e}")
-        continue
-
-    time.sleep(SLEEP_PER_TICKER)
-
-    # Batch save
-    if i % BATCH_SIZE == 0:
-        print(f"\n  💾 Saving batch at ticker {i}...")
+    # --- Final save ---
+    if records:
+        print("\nSaving final batch...")
         batch_df = sanitise(pd.DataFrame(records, columns=COLUMN_ORDER))
         saved_df = pd.concat([saved_df, batch_df], ignore_index=True)
-        saved_df = sanitise(saved_df)
-        saved_df.to_parquet(OUTPUT_PATH, index=False)
-        print(f"  ✅ Snapshot now has {len(saved_df)} rows.\n")
-        records = []  # clear buffer after saving
-        time.sleep(SLEEP_AFTER_BATCH)
 
-# --- Final save ---
-if records:
-    print("\nSaving final batch...")
-    batch_df = sanitise(pd.DataFrame(records, columns=COLUMN_ORDER))
-    saved_df = pd.concat([saved_df, batch_df], ignore_index=True)
+    saved_df = sanitise(saved_df)
+    saved_df.to_parquet(OUTPUT_PATH, index=False)
+    print(f"\n✅ Done. Final snapshot has {len(saved_df)} rows.")
 
-saved_df = sanitise(saved_df)
-saved_df.to_parquet(OUTPUT_PATH, index=False)
-print(f"\n✅ Done. Final snapshot has {len(saved_df)} rows.")
+
+if __name__ == "__main__":
+    main()
