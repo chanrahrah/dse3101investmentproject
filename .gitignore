@@ -10,19 +10,9 @@ __pycache__/
 # Ignore everything in Datasets
 Datasets/*
 
-# Keep folder structure
-!Datasets/
-!Datasets/**/
-
-# Ignore everything again inside
-Datasets/**
-
 # Allow final_files folder
 !Datasets/final_files/
 !Datasets/final_files/*.parquet
-
-# Keep gitkeep if needed
-!Datasets/**/.gitkeep
 
 # Ignore .env (contains api keys)
 .env
