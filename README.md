@@ -63,7 +63,7 @@ python -m venv venv
 ```
 >
 > 2. Activate it
-> # Windows:
+> Windows:
 ```
 venv\Scripts\activate
 ```
@@ -73,7 +73,7 @@ venv\Scripts\activate
 Set-ExecutionPolicy -Scope CurrentUser     -ExecutionPolicy RemoteSigned
 ```
 >
-> # Mac/Linux:
+> Mac/Linux:
 ```
 source venv/bin/activate
 ```
