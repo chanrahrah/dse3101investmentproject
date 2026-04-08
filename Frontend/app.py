@@ -64,6 +64,7 @@ with c3:
         key="from_date",
         format="YYYY-MM-DD",
     )
+    st.caption("Earliest date: 2018-08-16")
 
 min_to_date = from_date + relativedelta(months=+6)
 
@@ -82,6 +83,7 @@ with c4:
         key="to_date",
         format="YYYY-MM-DD",
     )
+    st.caption("Latest date: 2026-03-31")
 
 if to_date < min_to_date:
     st.error("End date must be at least 6 months after the start date.")
