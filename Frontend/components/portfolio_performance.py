@@ -18,12 +18,6 @@ def count_quarters(portfolio_df):
 def log_returns(series):
     returns = [0]
     for i in range(1, len(series)):
-        returns.append(math.log(series[i] / series[i - 1]))
-    return returns
-
-def log_returns_new(series):
-    returns = [0]
-    for i in range(1, len(series)):
         log_ret = math.log(series[i] / series[i - 1])
         returns.append(returns[-1] + log_ret)  # cumulative sum
     return returns
@@ -108,8 +102,8 @@ def portfolio_performance(portfolio_df: pd.DataFrame):
     show_label_js = json.dumps(show_label)
 
     if use_log_scale:
-        portfolio_plot = log_returns_new(portfolio_values)
-        spy_plot = log_returns_new(spy_values)
+        portfolio_plot = log_returns(portfolio_values)
+        spy_plot = log_returns(spy_values)
     else:
         portfolio_plot = portfolio_values
         spy_plot = spy_values
