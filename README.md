@@ -54,6 +54,9 @@ OPENFIGI_URL=https://api.openfigi.com/v3/mapping
 > # Activate it
 > # Windows:
 > venv\Scripts\activate
+> # If you encounter "running scripts is disabled" or > unauthorized access:
+> # Run this in PowerShell, then try again
+> Set-ExecutionPolicy -Scope CurrentUser     -ExecutionPolicy RemoteSigned
 > # Mac/Linux:
 > source venv/bin/activate
 > ```
@@ -68,11 +71,12 @@ pip install -r requirements.txt
 ---
 
 ## Running the Pipeline
-Run Backend.batch_run_all_backend script to run all the batch_processes required to get final_files for dashboard website.
+Run Backend.batch_run_all_backend script to run all the batch_processes required to get final_files for dashboard website. (Recommended: force debug value for .env)
 
 **Run:**
 
 ```bash
+$env:DEBUG="false"
 python -m Backend.batch_run_all_backend
 ```
 
