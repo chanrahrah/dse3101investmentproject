@@ -23,7 +23,7 @@ from Frontend.components.portfolio_performance import portfolio_performance
 
 
 STOCK_SNAPSHOT_PATH = ROOT_DIR / "Datasets" / "final_files" / "stock_snapshot.parquet"
-SPY_PATH = ROOT_DIR / "Datasets" / "final_files" / "spy_prices"
+SPY_PATH = ROOT_DIR / "Datasets" / "final_files" / "spy_prices.parquet"
 
 stock_snapshot_df = pd.read_parquet(STOCK_SNAPSHOT_PATH) if STOCK_SNAPSHOT_PATH.exists() else None
 spy_df = pd.read_parquet(SPY_PATH) if SPY_PATH.exists() else None
