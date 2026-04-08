@@ -45,7 +45,8 @@ OPENFIGI_URL=https://api.openfigi.com/v3/mapping
 DEBUG=false
 ```
 
-> **EXPLANATION**
+> **EXPLANATION:**
+>
 > **`DEBUG=true` (Development):** Automatically downloads the latest dataset from Kaggle and skip all batch_processes.
 >
 > **`DEBUG=false` (Production):** Downloads only the raw zip files required for the pipeline and run all batch_processes.
