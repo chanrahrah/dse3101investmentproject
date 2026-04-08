@@ -40,6 +40,9 @@ def render_metric(label, value, kind="number", spy_value=None):
     
     arrow, arrow_color = get_arrow(value, spy_value)
 
+    if label == "Starting Capital":
+        arrow = ""
+
     st.markdown(
         f"""
         <div style="background:{bg}; border-radius:14px; padding:14px; height:110px; color:white;">
@@ -72,12 +75,18 @@ def count_quarters(portfolio_df):
     return 0
 
 # Compute metrics # 
-def compute_metrics(values, portfolio_df):
+def compute_metrics(values, portfolio_df, deduct_fee_from_starting=True):
     if values is None or len(values) < 2:
         return None
-    
-    starting = st.session_state.get("initial_capital") - st.session_state.get("fee_per_trade") * st.session_state.get("initial_capital")
-    
+
+    initial_capital = st.session_state.get("initial_capital", 0)
+    fee_per_trade = st.session_state.get("fee_per_trade", 0)
+
+    if deduct_fee_from_starting:
+        starting = initial_capital - fee_per_trade * initial_capital
+    else:
+        starting = initial_capital
+
     ending = values[-1]
 
     number_of_quarters = count_quarters(portfolio_df)
@@ -134,8 +143,8 @@ def performance_metrics(portfolio_df, metrics_df=None):
     spy_values = portfolio_df["spy_value"].tolist()
 
     # ---- Compute metrics ----
-    portfolio_metrics = compute_metrics(portfolio_values, portfolio_df)
-    spy_metrics = compute_metrics(spy_values, portfolio_df) if spy_values else None
+    portfolio_metrics = compute_metrics(portfolio_values, portfolio_df, deduct_fee_from_starting=True)
+    spy_metrics = compute_metrics(spy_values, portfolio_df, deduct_fee_from_starting=False) if spy_values else None
 
     if portfolio_metrics is None:
         st.warning("Not enough data to calculate metrics.")
