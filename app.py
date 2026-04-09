@@ -10,6 +10,7 @@ import sys
 
 import pandas as pd
 import streamlit as st
+import gc
 
 ROOT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT_DIR))
@@ -114,7 +115,7 @@ with c6:
 portfolio_df = None
 metrics_df = None
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(ttl=900, show_spinner=False)
 def run_backtest(from_date, to_date, initial_capital, topN, cost_rate):
     return main(
         userinput_start_date=from_date,
@@ -125,34 +126,52 @@ def run_backtest(from_date, to_date, initial_capital, topN, cost_rate):
     )
 
 try:
-    with st.spinner("Running backtest..."):
-        portfolio_df, metrics_df = run_backtest(
-            from_date.strftime("%Y-%m-%d"),
-            to_date.strftime("%Y-%m-%d"),
-            float(initial_capital),
-            int(topN),
-            float(cost_rate),
-        )
+    #with st.spinner("Running backtest..."):
+    #    portfolio_df, metrics_df = run_backtest(
+    #        from_date.strftime("%Y-%m-%d"),
+    #        to_date.strftime("%Y-%m-%d"),
+    #        float(initial_capital),
+    #        int(topN),
+    #        float(cost_rate),
+    #    )
+    run_button = st.button("Run Backtest")
+    
+    if run_button: 
+        with st.spinner("Running backtest..."):
+            portfolio_df, metrics_df = run_backtest(
+                from_date.strftime("%Y-%m-%d"),
+                to_date.strftime("%Y-%m-%d"),
+                float(initial_capital),
+                int(topN),
+                float(cost_rate),
+            )
+        gc.collect()
+        
+    else: 
+        st.info("Click 'Run Backtest' to start.")
+        st.stop()
+    
+    if portfolio_df is not None and spy_df is not None:
+        portfolio_df = portfolio_df.copy()
+        portfolio_df["date"] = pd.to_datetime(portfolio_df["date"]).dt.normalize()
 
-        if portfolio_df is not None and spy_df is not None:
-            portfolio_df = portfolio_df.copy()
-            portfolio_df["date"] = pd.to_datetime(portfolio_df["date"]).dt.normalize()
+        spy_merge = spy_df.copy()
+        spy_merge["date"] = pd.to_datetime(spy_merge["date"]).dt.normalize()
 
-            spy_merge = spy_df.copy()
-            spy_merge["date"] = pd.to_datetime(spy_merge["date"]).dt.normalize()
+        spy_merge = (
+            spy_merge[spy_merge["ticker"].astype(str).str.upper() == "SPY"][["date", "adj_close"]]
+            .drop_duplicates(subset=["date"])
+            .rename(columns={"adj_close": "spy_price"}))
 
-            spy_merge = (
-                spy_merge[spy_merge["ticker"].astype(str).str.upper() == "SPY"][["date", "adj_close"]]
-                .drop_duplicates(subset=["date"])
-                .rename(columns={"adj_close": "spy_price"}))
+        portfolio_df = portfolio_df.merge(spy_merge, on="date", how="left")
+        
+        gc.collect()
 
-            portfolio_df = portfolio_df.merge(spy_merge, on="date", how="left")
-
-            valid_spy = portfolio_df["spy_price"].dropna()
-            if not valid_spy.empty:
-                first_spy_price = valid_spy.iloc[0]
-                portfolio_df["spy_value"] = (
-                    portfolio_df["spy_price"] / first_spy_price) * float(initial_capital)
+        valid_spy = portfolio_df["spy_price"].dropna()
+        if not valid_spy.empty:
+            first_spy_price = valid_spy.iloc[0]
+            portfolio_df["spy_value"] = (
+                portfolio_df["spy_price"] / first_spy_price) * float(initial_capital)
 
 except Exception as e:
     st.error(f"Error running backend: {e}")
