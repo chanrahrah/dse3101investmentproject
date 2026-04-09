@@ -38,7 +38,6 @@ stock_snapshot_df, spy_df = load_data()
 st.set_page_config(page_title="dse3101 project", layout="wide")
 st.title("Dashboard")
 
-
 c1, c2, c3, c4, c5, c6 = st.columns([0.20, 0.18, 0.18, 0.18, 0.13, 0.13])
 
 with c1:
@@ -111,9 +110,14 @@ with c6:
         index=0,
         key="topN_institutions",)
 
+if "portfolio_df" not in st.session_state:
+    st.session_state.portfolio_df = None
 
-portfolio_df = None
-metrics_df = None
+if "metrics_df" not in st.session_state:
+    st.session_state.metrics_df = None
+
+if "has_run" not in st.session_state:
+    st.session_state.has_run = False
 
 @st.cache_data(ttl=900, show_spinner=False)
 def run_backtest(from_date, to_date, initial_capital, topN, cost_rate):
@@ -125,18 +129,28 @@ def run_backtest(from_date, to_date, initial_capital, topN, cost_rate):
         userinput_cost_rate=cost_rate,
     )
 
-try:
-    #with st.spinner("Running backtest..."):
-    #    portfolio_df, metrics_df = run_backtest(
-    #        from_date.strftime("%Y-%m-%d"),
-    #        to_date.strftime("%Y-%m-%d"),
-    #        float(initial_capital),
-    #        int(topN),
-    #        float(cost_rate),
-    #    )
-    run_button = st.button("Run Backtest")
+run_button = st.button("Run Backtest")
+try: 
+# display page with default inputs 
+    if not st.session_state.has_run:
+        with st.spinner("Running default backtest..."):
+            portfolio_df, metrics_df = run_backtest(
+                from_date.strftime("%Y-%m-%d"),
+                to_date.strftime("%Y-%m-%d"),
+                float(initial_capital),
+                int(topN),
+                float(cost_rate),
+            )
     
-    if run_button: 
+            st.session_state.portfolio_df = portfolio_df
+            st.session_state.metrics_df = metrics_df
+            st.session_state.has_run = True
+    
+            gc.collect()
+    
+    # change with user inputs
+    elif run_button:
+    
         with st.spinner("Running backtest..."):
             portfolio_df, metrics_df = run_backtest(
                 from_date.strftime("%Y-%m-%d"),
@@ -145,12 +159,16 @@ try:
                 int(topN),
                 float(cost_rate),
             )
-        gc.collect()
-        
-    else: 
-        st.info("Click 'Run Backtest' to start.")
-        st.stop()
     
+            st.session_state.portfolio_df = portfolio_df
+            st.session_state.metrics_df = metrics_df
+    
+            gc.collect()
+    
+    # use stored results
+    portfolio_df = st.session_state.portfolio_df
+    metrics_df = st.session_state.metrics_df
+
     if portfolio_df is not None and spy_df is not None:
         portfolio_df = portfolio_df.copy()
         portfolio_df["date"] = pd.to_datetime(portfolio_df["date"]).dt.normalize()
